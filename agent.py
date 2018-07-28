@@ -63,6 +63,10 @@ class Agent:
                            self.w_bf[..., i] * percept['bf'] +
                            self.w_pb[..., i] * percept['pb'] +
                            ACQprms.e_e())
+            # Set max executability 1
+            # Set all irrelevant actions as executable
+            if ex[i] > 1 or i >= self.n_rel_actions:
+                ex[i] = 1
         return ex
 
     def act(self, env):
@@ -109,6 +113,17 @@ class Agent:
             self.w_mf[..., i] += ACQprms.a * reinforce[i] * prev_state['mf']
             self.w_bf[..., i] += ACQprms.a * reinforce[i] * prev_state['bf']
             self.w_pb[..., i] += ACQprms.a * reinforce[i] * prev_state['pb']
+
+        # Threshold executability weights between -5 and 1
+        self.w_pf[self.w_pf < -5.0] = -5
+        self.w_mf[self.w_mf < -5.0] = -5
+        self.w_bf[self.w_bf < -5.0] = -5
+        self.w_pb[self.w_pb < -5.0] = -5
+
+        self.w_pf[self.w_pf > 1] = 1
+        self.w_mf[self.w_mf > 1] = 1
+        self.w_bf[self.w_bf > 1] = 1
+        self.w_pb[self.w_pb > 1] = 1
 
     def get_desirability_reinforcement(self, selected_action_i, env, success,
                                        r_signal):
