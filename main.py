@@ -12,7 +12,7 @@ agent = Agent(n_irrelevant_actions=0)
 
 h = agent.hunger
 i_eat = 0
-for i in range(1000):
+for i in range(500):
     agent.act(env)
     if agent.hunger < h:
         print "Eat!"
@@ -20,9 +20,9 @@ for i in range(1000):
         h = agent.hunger
         env = ExternalEnviroment()
         i_eat += 1
-    if i_eat > 10:
+    if i_eat > 100:
         break
-
+print i_eat
 plt.figure()
 n_actions = agent.n_actions - agent.n_irr_actions
 labels = map(lambda x: x.name, agent.actions.values()[:n_actions])

@@ -3,7 +3,8 @@ from collections import OrderedDict
 
 import numpy as np
 
-from actions import *
+from actions import (Eat, GraspJaws, BringToMouth, ReachFood, ReachTube,
+                     GraspPaw, Rake, LowerNeck, RaiseNeck, IrrelevantAction)
 from acq_parameters import ACQparameters as ACQprms
 
 AVAILABLE_ACTIONS = [Eat, GraspJaws, BringToMouth, ReachFood, ReachTube,
@@ -43,7 +44,7 @@ class Agent:
         self.w_pb = np.ones((v_max, v_max, self.n_actions))
 
         self.hist_desirability = self.w_is[:self.n_rel_actions][...,
-                                                               np.newaxis]
+                                                                np.newaxis]
 
     def get_internal_state(self):
         return self.hunger
@@ -51,15 +52,17 @@ class Agent:
     def get_desirability(self, internal_state):
         # SOS is e_d different for each action?
         return internal_state * self.w_is + [ACQprms.e_d() for i in
-                                               range(self.n_actions)]
+                                             range(self.n_actions)]
 
     def get_executability(self, percept):
         # SOS is e_e different for each action?
         ex = np.zeros(self.n_actions)
         for i in range(self.n_actions):
-            ex[i] = np.sum(self.w_pf[..., i] * percept['pf'] + self.w_mf[..., i] * percept['mf'] +\
-                self.w_bf[..., i] * percept['bf'] + self.w_pb[..., i] * percept['pb'] +\
-                ACQprms.e_e())
+            ex[i] = np.sum(self.w_pf[..., i] * percept['pf'] +
+                           self.w_mf[..., i] * percept['mf'] +
+                           self.w_bf[..., i] * percept['bf'] +
+                           self.w_pb[..., i] * percept['pb'] +
+                           ACQprms.e_e())
         return ex
 
     def act(self, env):
@@ -75,7 +78,8 @@ class Agent:
         # if success and \
         #    selected_action.name != 'irrelevant_action':
         r_signal = selected_action.effects(env, self)
-        env.print_current_state()
+        # env.print_current_state()
+        print selected_action.name
         # perceived_action = self.mirror_system(percept)
 
         if self.learn:
@@ -86,13 +90,15 @@ class Agent:
             self.update_desirability(r, eligibility_trace)
         self.hist_desirability = np.hstack(
             (self.hist_desirability, self.w_is[:self.n_rel_actions][...,
-                                                                   np.newaxis])
+                                                                    np.newaxis]
+             )
         )
 
     def get_executability_reinforcement(self, selected_action, success):
         if self.use_mirror_system:
             return 0
-        reinforce = np.asarray(map(lambda x: x == selected_action, self.actions.values())).astype('int')
+        reinforce = np.asarray(map(lambda x: x == selected_action,
+                                   self.actions.values())).astype('int')
         if not success:
             reinforce *= -1
         return reinforce
