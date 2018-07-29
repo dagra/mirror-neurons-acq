@@ -43,9 +43,10 @@ def abs_diff_eq_to(p1, p2, val):
 
 
 class Action:
-    def __init__(self, type, name, ):
+    def __init__(self, type, name, color):
         self.type = type
         self.name = name
+        self.color = color
 
     def preconditions(self, env):
         return True
@@ -56,7 +57,7 @@ class Action:
 
 class Eat(Action):
     def __init__(self):
-        Action.__init__(self, 'relevant', 'eat')
+        Action.__init__(self, 'relevant', 'eat', 'b')
 
     def preconditions(self, env):
         """Food in jaws."""
@@ -64,13 +65,15 @@ class Eat(Action):
 
     def effects(self, env, agent):
         """Hunger reduces; positive reinforcement."""
+        env.reset()
+        env.compute_population_codes()
         agent.hunger = 0
         return 1
 
 
 class GraspJaws(Action):
     def __init__(self):
-        Action.__init__(self, 'relevant', 'grasp_jaws')
+        Action.__init__(self, 'relevant', 'grasp_jaws', 'g')
 
     def preconditions(self, env):
         """Food close to jaws."""
@@ -80,12 +83,13 @@ class GraspJaws(Action):
     def effects(self, env, agent):
         """Mouth moves to food."""
         env.mouth = env.food[:]
+        env.compute_population_codes()
         return 0
 
 
 class BringToMouth(Action):
     def __init__(self):
-        Action.__init__(self, 'relevant', 'bring_to_mouth')
+        Action.__init__(self, 'relevant', 'bring_to_mouth', 'r')
 
     def preconditions(self, env):
         """Food grasped by paw, but not close to mouth."""
@@ -100,12 +104,13 @@ class BringToMouth(Action):
         """
         env.paw = env.mouth + [5, 0]
         env.food = env.paw[:]
+        env.compute_population_codes()
         return 0
 
 
 class GraspPaw(Action):
     def __init__(self):
-        Action.__init__(self, 'relevant', 'grasp_paw')
+        Action.__init__(self, 'relevant', 'grasp_paw', 'c')
 
     def preconditions(self, env):
         """Paw close to food."""
@@ -115,12 +120,13 @@ class GraspPaw(Action):
     def effects(self, env, agent):
         """Paw grasps food."""
         env.paw = env.food[:]
+        env.compute_population_codes()
         return 0
 
 
 class ReachFood(Action):
     def __init__(self):
-        Action.__init__(self, 'relevant', 'reach_food')
+        Action.__init__(self, 'relevant', 'reach_food', 'm')
 
     def preconditions(self, env):
         """Food in tube and paw aligned with or within tube or food on floor
@@ -135,12 +141,13 @@ class ReachFood(Action):
     def effects(self, env, agent):
         """Paw is moved close enough to the food to grasp it"""
         env.paw = env.food + [0, 1]
+        env.compute_population_codes()
         return 0
 
 
 class ReachTube(Action):
     def __init__(self):
-        Action.__init__(self, 'relevant', 'reach_tube')
+        Action.__init__(self, 'relevant', 'reach_tube', 'y')
 
     def preconditions(self, env):
         """Paw not near tube"""
@@ -154,12 +161,13 @@ class ReachTube(Action):
         env.paw = env.tube + [3, 1]
         if np.all(env.food == env.paw):
             env.food = env.paw[:]
+        env.compute_population_codes()
         return 0
 
 
 class Rake(Action):
     def __init__(self):
-        Action.__init__(self, 'relevant', 'rake')
+        Action.__init__(self, 'relevant', 'rake', 'darkgrey')
 
     def preconditions(self, env):
         """Paw at a position both beyond and higher than the food."""
@@ -179,12 +187,13 @@ class Rake(Action):
         else:
             env.food = np.asarray([1, 0])  # SOS
         env.paw = env.food + [1, 3]
+        env.compute_population_codes()
         return 0
 
 
 class LowerNeck(Action):
     def __init__(self):
-        Action.__init__(self, 'relevant', 'lower_neck')
+        Action.__init__(self, 'relevant', 'lower_neck', 'orangered')
 
     def preconditions(self, env):
         """Neck above lowest position."""
@@ -195,12 +204,13 @@ class LowerNeck(Action):
         env.mouth[1] = 3
         if np.all(env.food == env.mouth):
             env.food = env.mouth[:]
+        env.compute_population_codes()
         return 0
 
 
 class RaiseNeck(Action):
     def __init__(self):
-        Action.__init__(self, 'relevant', 'raise_neck')
+        Action.__init__(self, 'relevant', 'raise_neck', 'darksalmon')
 
     def preconditions(self, env):
         """Neck below highest position."""
@@ -211,9 +221,10 @@ class RaiseNeck(Action):
         env.mouth[1] = env.v_max
         if np.all(env.food == env.mouth):
             env.food = env.mouth[:]
+        env.compute_population_codes()
         return 0
 
 
 class IrrelevantAction(Action):
     def __init__(self):
-        Action.__init__(self, 'irrelevant', 'irrelevant_action')
+        Action.__init__(self, 'irrelevant', 'irrelevant_action', 'brown')

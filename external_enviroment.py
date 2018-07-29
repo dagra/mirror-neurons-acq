@@ -19,9 +19,12 @@ class ExternalEnviroment:
         #                         np.random.randint(0, v_max - 1)])
         # self.tube = np.asarray([np.random.randint(0, v_max - 1),
         #                         np.random.randint(0, v_max - 1)])
+        self.reset()
+
+    def reset(self):
         self.food = np.asarray([30, 30])
         self.paw = np.asarray([0, 0])
-        self.mouth = np.asarray([0, v_max])
+        self.mouth = np.asarray([0, self.v_max])
         self.tube = np.asarray([25, 30])
         self.compute_population_codes()
 
@@ -44,7 +47,8 @@ class ExternalEnviroment:
         self.pb = self.population_code(self.paw, self.tube)
 
     def get_population_codes(self):
-        return {'pf': self.pf, 'mf': self.mf, 'bf': self.bf, 'pb': self.pb}
+        return {'pf': self.pf[:], 'mf': self.mf[:], 'bf': self.bf[:],
+                'pb': self.pb[:]}
 
     def visualize_population_codes(self):
         plt.figure()
