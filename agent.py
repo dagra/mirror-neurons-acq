@@ -117,6 +117,7 @@ class Agent:
         # print "----------------"
         # print self.actions['eat'].preconditions(self.env)
         # print "****************"
+        return executable
 
     def get_executability_reinforcement(self, selected_action, executable):
         if self.use_mirror_system:
@@ -175,6 +176,7 @@ class Agent:
         self.w_is += ACQprms.a * reinforce * eligibility_trace
 
     def perceive(self, env):
+        env.compute_population_codes()
         return env.get_population_codes()
 
     def actor(self, percept, internal_state):
