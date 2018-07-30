@@ -56,12 +56,12 @@ class Agent:
     def get_internal_state(self):
         return self.hunger
 
-    def get_desirability(self, internal_state):
+    def get_desirability(self, internal_state, noise):
         # SOS is e_d different for each action?
-        return internal_state * self.w_is + [ACQprms.e_d() for i in
-                                             range(self.n_actions)]
+        return internal_state * self.w_is + int(noise) * \
+            np.asarray([ACQprms.e_d() for i in range(self.n_actions)])
 
-    def get_executability(self, percept):
+    def get_executability(self, percept, noise):
         # SOS is e_e different for each action?
         ex = np.zeros(self.n_actions)
         for i in range(self.n_actions):
@@ -69,7 +69,7 @@ class Agent:
                            self.w_mf[..., i] * percept['mf'] +
                            self.w_bf[..., i] * percept['bf'] +
                            self.w_pb[..., i] * percept['pb'] +
-                           ACQprms.e_e())
+                           noise * ACQprms.e_e())
             # Set max executability 1
             # Set all irrelevant actions as executable
             if ex[i] > 1 or i >= self.n_rel_actions:
@@ -79,9 +79,8 @@ class Agent:
     def act(self, env):
         self.env = env
         percept = self.perceive(env)
-        selected_action, selected_action_i = self.actor(
-            percept,
-            self.get_internal_state())
+        selected_action, selected_action_i, desir = self.actor(
+            percept, self.get_internal_state(), True)
         executable = selected_action.preconditions(env)
         # if selected_action.name != 'irrelevant_action':
         #     print selected_action.name, p
@@ -102,7 +101,7 @@ class Agent:
                                                      executable)
             self.update_executability(r, percept)
             r, eligibility_trace = self.get_desirability_reinforcement(
-                selected_action_i, env, executable, r_signal)
+                selected_action_i, env, executable, r_signal, desir)
             # if r != 0:
             #     print "*******"
             #     print r, np.nonzero(eligibility_trace),
@@ -147,7 +146,7 @@ class Agent:
         self.w_pb[self.w_pb > 1] = 1
 
     def get_desirability_reinforcement(self, selected_action_i, env,
-                                       executable, r_signal):
+                                       executable, r_signal, desir):
         if not executable or \
            self.actions.values()[selected_action_i].type == 'irrelevant':
             return 0, np.zeros(self.n_actions)
@@ -155,10 +154,11 @@ class Agent:
         if self.use_mirror_system:
             return 0
         # reinforce = (self.actions.values() == selected_action).astype('int')
-        _, next_action_i = self.actor(self.perceive(env),
-                                      self.get_internal_state())
-        reinforce = r_signal + ACQprms.gamma * self.w_is[next_action_i] - \
-            self.w_is[selected_action_i]
+        _, next_action_i, next_des = self.actor(self.perceive(env),
+                                                self.get_internal_state(),
+                                                True)
+        reinforce = r_signal + ACQprms.gamma * next_des - \
+            desir
         # if self.actions.keys()[selected_action_i] == 'grasp_jaws':
         #     print r_signal, self.w_is[next_action_i], next_action_i
         #     print self.w_is[selected_action_i]
@@ -179,7 +179,7 @@ class Agent:
         env.compute_population_codes()
         return env.get_population_codes()
 
-    def actor(self, percept, internal_state):
+    def actor(self, percept, internal_state, noise):
         # selected_action = np.random.choice(self.actions.values())
         # if self.actions['eat'].preconditions(self.env):
         #     selected_action = self.actions['eat']
@@ -200,10 +200,10 @@ class Agent:
         #     selected_action = self.actions['reach_tube']
         #     selected_action_i = 5
         # return selected_action, selected_action_i
-        e = self.get_executability(percept)
-        d = self.get_desirability(internal_state)
+        e = self.get_executability(percept, noise)
+        d = self.get_desirability(internal_state, noise)
         priority = e * d
         max_inds = np.argwhere(priority == np.max(priority)).flatten()
         selected_action_i = np.random.choice(max_inds)
         selected_action = self.actions.values()[selected_action_i]
-        return selected_action, selected_action_i
+        return selected_action, selected_action_i, d[selected_action_i]

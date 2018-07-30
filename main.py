@@ -11,7 +11,7 @@ from external_enviroment import ExternalEnviroment
 # Initialization
 env = ExternalEnviroment()
 
-agent = Agent(n_irrelevant_actions=0)
+agent = Agent(n_irrelevant_actions=5)
 
 max_eat = 100
 i_eat = 0
@@ -21,9 +21,9 @@ last_action_desirability = np.zeros((n_actions, max_eat))
 while i_eat < max_eat:
     n_tried_actions = 0
     start_time = time.time()
-    while n_tried_actions < 300:
+    while n_tried_actions < 50:
         executed = agent.act(env)
-        executability_error[i_eat] += int(~executed)
+        executability_error[i_eat] += int(not executed)
         n_tried_actions += 1
         if agent.hunger == 0:
             print "###########"
