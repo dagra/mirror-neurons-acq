@@ -1,4 +1,5 @@
 """This file contains the state of the external enviroment."""
+from collections import OrderedDict
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -19,6 +20,7 @@ class ExternalEnviroment:
         #                         np.random.randint(0, v_max - 1)])
         # self.tube = np.asarray([np.random.randint(0, v_max - 1),
         #                         np.random.randint(0, v_max - 1)])
+        self.divisor = ((ACQprms.s_p ** 2) * 2 * np.pi)
         self.reset()
 
     def reset(self):
@@ -30,14 +32,13 @@ class ExternalEnviroment:
 
     def population_code(self, v1, v2):
         dx, dy = v2[0] - v1[0], v2[1] - v1[1]
-        norm = self.v_max / 2
+        norm = self.v_max / 2.
         code = np.zeros((self.v_max, self.v_max))
         for x in range(code.shape[0]):
             for y in range(code.shape[1]):
                 code[x, y] = np.exp((-(dx - (x - norm))**2 -
                                     (dy - (y - norm))**2) /
-                                    2 * ACQprms.s_p) / ((ACQprms.s_p ** 2) *
-                                                        2 * np.pi)
+                                    2 * ACQprms.s_p**2) / self.divisor
         return code
 
     def compute_population_codes(self):
@@ -47,8 +48,12 @@ class ExternalEnviroment:
         self.pb = self.population_code(self.paw, self.tube)
 
     def get_population_codes(self):
-        return {'pf': self.pf[:], 'mf': self.mf[:], 'bf': self.bf[:],
-                'pb': self.pb[:]}
+        d = OrderedDict()
+        d['pf'] = self.pf[:]
+        d['mf'] = self.mf[:]
+        d['bf'] = self.bf[:]
+        d['pb'] = self.pb[:]
+        return d
 
     def visualize_population_codes(self):
         plt.figure()
