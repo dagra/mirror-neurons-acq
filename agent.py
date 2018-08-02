@@ -56,6 +56,10 @@ class Agent:
                                                                 np.newaxis]
 
         self.action_counter = np.zeros(self.n_actions)
+        self.dw_pf = np.zeros((v_max, v_max, self.n_actions))
+        self.dw_mf = np.zeros((v_max, v_max, self.n_actions))
+        self.dw_bf = np.zeros((v_max, v_max, self.n_actions))
+        self.dw_pb = np.zeros((v_max, v_max, self.n_actions))
 
     def get_internal_state(self):
         return self.hunger
@@ -81,11 +85,11 @@ class Agent:
             #     print np.sum(self.w_bf[..., i] * percept['bf'])
             #     print np.sum(self.w_pb[..., i])
             #     print np.sum(self.w_pb[..., i] * percept['pb'])
-            ex[i] = np.sum(self.w_pf[..., i] * percept['pf'] +
+            ex[i] = np.mean(self.w_pf[..., i] * percept['pf'] +
                            self.w_mf[..., i] * percept['mf'] +
                            self.w_bf[..., i] * percept['bf'] +
-                           self.w_pb[..., i] * percept['pb'] +
-                           noise * ACQprms.e_e())
+                           self.w_pb[..., i] * percept['pb']) +\
+                noise * ACQprms.e_e()
             # Set max executability 1
             # Set all irrelevant actions as executable
             # if ex[i] > 1:
@@ -93,7 +97,7 @@ class Agent:
             # if ex[i] < 0:
             #     ex[i] = 0
         ex[ex > 1] = 1
-        ex[ex < 0 ] = 0
+        ex[ex < 0] = 0
         return ex
 
     def act(self, env):
@@ -152,20 +156,27 @@ class Agent:
         if self.use_mirror_system:
             return 0
         reinforce = np.asarray(map(lambda x: x == selected_action,
-                                   self.actions.values())).astype('int')
+                                   self.actions.values())).astype('float')
         if not executable:
             reinforce *= -1
         else:
             reinforce *= 1
         return reinforce
 
-    def update_executability(self, reinforce, prev_state):
+    def update_executability(self, reinforce, prev_state, momentum=0):
         for i in range(self.n_actions):
-            self.w_pf[..., i] += ACQprms.a * reinforce[i] * prev_state['pf']**2
-            self.w_mf[..., i] += ACQprms.a * reinforce[i] * prev_state['mf']**2
-            self.w_bf[..., i] += ACQprms.a * reinforce[i] * prev_state['bf']**2
-            self.w_pb[..., i] += ACQprms.a * reinforce[i] * prev_state['pb']**2
-
+            self.dw_pf[..., i] = self.dw_pf[..., i] * momentum + \
+                ACQprms.a * reinforce[i] * prev_state['pf'] * (1 - momentum)
+            self.dw_mf[..., i] = self.dw_mf[..., i] * momentum + \
+                ACQprms.a * reinforce[i] * prev_state['mf'] * (1 - momentum)
+            self.dw_bf[..., i] = self.dw_bf[..., i] * momentum + \
+                ACQprms.a * reinforce[i] * prev_state['bf'] * (1 - momentum)
+            self.dw_pb[..., i] = self.dw_pb[..., i] * momentum + \
+                ACQprms.a * reinforce[i] * prev_state['pb'] * (1 - momentum)
+            self.w_pf[..., i] += self.dw_pf[..., i]
+            self.w_mf[..., i] += self.dw_mf[..., i]
+            self.w_bf[..., i] += self.dw_bf[..., i]
+            self.w_pb[..., i] += self.dw_pb[..., i]
         # Threshold executability weights between lb and ub (-5 and 1)
         lb, ub = self.ex_min, self.ex_max
         self.w_pf[self.w_pf < lb] = lb
@@ -191,8 +202,14 @@ class Agent:
                                                 self.get_internal_state(),
                                                 False)
         # SOS reinforce may be negative, how to correct
-        reinforce = r_signal + ACQprms.gamma * self.w_is[next_action_i] - \
-            self.w_is[selected_action_i]
+        if self.get_internal_state():
+            reinforce = r_signal + ACQprms.gamma * self.w_is[next_action_i] - \
+                self.w_is[selected_action_i]
+        else:
+            reinforce = r_signal + ACQprms.gamma * 0 - \
+                self.w_is[selected_action_i]
+        # reinforce = r_signal + ACQprms.gamma * next_des - \
+        #     desir
         if self.actions.keys()[selected_action_i] == 'grasp_jaws':
             print self.actions.keys()[selected_action_i]
             print reinforce, r_signal, next_des, self.w_is[next_action_i], desir
@@ -238,7 +255,7 @@ class Agent:
         # return selected_action, selected_action_i
         e = self.get_executability(percept, noise)
         e[e > 1] = 1
-        e[e < 0 ] = 0
+        e[e < 0] = 0
         d = self.get_desirability(internal_state, noise)
         priority = e * d
         max_inds = np.argwhere(priority == np.max(priority)).flatten()

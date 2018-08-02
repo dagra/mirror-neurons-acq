@@ -36,9 +36,9 @@ class ACQparameters:
     # Executability/desirability learning rate
     # Determines rate of weight changes -- the model becomes
     # unstable when this value is too large
-    a = 0.01
+    a = 0.001
 
     # Desirability discount rate
     # Determines maximal length of action sequences that can be
     # learned
-    gamma = 0.99
+    gamma = 0.999
