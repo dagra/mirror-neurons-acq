@@ -161,10 +161,10 @@ class Agent:
 
     def update_executability(self, reinforce, prev_state):
         for i in range(self.n_actions):
-            self.w_pf[..., i] += ACQprms.a * reinforce[i] * prev_state['pf']
-            self.w_mf[..., i] += ACQprms.a * reinforce[i] * prev_state['mf']
-            self.w_bf[..., i] += ACQprms.a * reinforce[i] * prev_state['bf']
-            self.w_pb[..., i] += ACQprms.a * reinforce[i] * prev_state['pb']
+            self.w_pf[..., i] += ACQprms.a * reinforce[i] * prev_state['pf']**2
+            self.w_mf[..., i] += ACQprms.a * reinforce[i] * prev_state['mf']**2
+            self.w_bf[..., i] += ACQprms.a * reinforce[i] * prev_state['bf']**2
+            self.w_pb[..., i] += ACQprms.a * reinforce[i] * prev_state['pb']**2
 
         # Threshold executability weights between lb and ub (-5 and 1)
         lb, ub = self.ex_min, self.ex_max

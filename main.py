@@ -14,31 +14,41 @@ env = ExternalEnviroment()
 agent = Agent(n_irrelevant_actions=0)
 
 max_eat = 100
-i_eat = 0
-executability_error = np.zeros(max_eat)
+trial = 0
+trial_success = 0
+executability_error = np.zeros(max_eat) - 1
 n_actions = agent.n_actions - agent.n_irr_actions
-last_action_desirability = np.zeros((n_actions, max_eat))
-while i_eat < max_eat:
+last_action_desirability = np.zeros((n_actions, max_eat)) - 1
+# while trial < max_eat:
+while trial_success < 100:
     n_tried_actions = 0
     start_time = time.time()
+    if trial >= len(executability_error):
+        executability_error = np.append(executability_error,
+                                        np.zeros(max_eat) - 1)
+        last_action_desirability = np.append(last_action_desirability,
+                                             np.zeros((n_actions,
+                                                       max_eat)) - 1,
+                                             axis=1)
     while n_tried_actions < 50:
         executed = agent.act(env)
-        executability_error[i_eat] += int(not executed)
+        executability_error[trial] += int(not executed)
         n_tried_actions += 1
         if agent.hunger == 0:
+            trial_success += 1
             break
-    last_action_desirability[:, i_eat] = agent.hist_desirability[:n_actions,
+    last_action_desirability[:, trial] = agent.hist_desirability[:n_actions,
                                                                  -1]
-    executability_error[i_eat] /= float(n_tried_actions)
+    executability_error[trial] /= float(n_tried_actions)
     print "###########"
-    print "{}/{}-Ate: {}-actions:{}-exec rate: {}-time:{} sec".format(
-        i_eat + 1, max_eat, agent.hunger == 0,
-        n_tried_actions, executability_error[i_eat],
+    print "{}/{}/{}-Ate: {}-actions:{}-exec rate: {}-time:{} sec".format(
+        trial_success + 1, trial + 1, max_eat, agent.hunger == 0,
+        n_tried_actions, executability_error[trial],
         np.round(time.time() -
                  start_time))
     print agent.action_counter
     agent.action_counter = np.zeros(agent.n_actions)
-    i_eat += 1
+    trial += 1
     agent.hunger = 1
     env = ExternalEnviroment()
 
