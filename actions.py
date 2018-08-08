@@ -193,7 +193,7 @@ class Rake(Action):
 
 class LowerNeck(Action):
     def __init__(self):
-        Action.__init__(self, 'relevant', 'lower_neck', 'orangered')
+        Action.__init__(self, 'relevant', 'lower_neck', 'rosybrown')
 
     def preconditions(self, env):
         """Neck above lowest position."""

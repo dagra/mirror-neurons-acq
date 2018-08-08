@@ -32,7 +32,7 @@ class ExternalEnviroment:
 
     def population_code(self, v1, v2):
         dx, dy = v2[0] - v1[0], v2[1] - v1[1]
-        norm = self.v_max / 2.
+        norm = int(self.v_max / 2)
         code = np.zeros((self.v_max, self.v_max))
         for x in range(code.shape[0]):
             for y in range(code.shape[1]):
