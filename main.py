@@ -1,4 +1,9 @@
-"""Main code"""
+"""Main code
+
+Initializes the agent and the enviroment.
+Simulates N trials.
+Records and plots the corresponding statistics.
+"""
 
 import time
 
@@ -16,14 +21,17 @@ agent = Agent(n_irrelevant_actions=5)
 max_eat = 200
 max_actions = 50
 
-trial = 0
-trial_success = 0
+n_rel_actions = agent.n_actions - agent.n_irr_actions
+# Statistics
 executability_error = np.zeros(max_eat) - 1
 success_trial_length = np.zeros(max_eat) - 1
 total_trial_length = []
 total_executability_error = []
-n_actions = agent.n_actions - agent.n_irr_actions
-last_action_desirability = np.zeros((n_actions, max_eat)) - 1
+last_action_desirability = np.zeros((n_rel_actions, max_eat)) - 1
+
+trial = 0
+trial_success = 0
+# A trial is successful if the agent performs the task (eat)
 while trial_success < max_eat:
     n_tried_actions = 0
     start_time = time.time()
@@ -36,7 +44,7 @@ while trial_success < max_eat:
         n_tried_actions += 1
         if agent.hunger == 0:
             last_action_desirability[:, trial_success] = \
-                agent.hist_desirability[:n_actions, -1]
+                agent.hist_desirability[:n_rel_actions, -1]
             executability_error[trial_success] /= float(n_tried_actions)
             success_trial_length[trial_success] = n_tried_actions
             trial_success += 1
@@ -59,50 +67,49 @@ while trial_success < max_eat:
 
     # Reset agent and enviroment
     agent.hunger = 1
-    env = ExternalEnviroment()
+    env.reset()
 
 
 # Plot results
 
-n_actions = agent.n_actions - agent.n_irr_actions
-labels = map(lambda x: x.name, agent.actions.values()[:n_actions])
-colors = map(lambda x: x.color, agent.actions.values()[:n_actions])
+labels = map(lambda x: x.name, agent.actions.values()[:n_rel_actions])
+colors = map(lambda x: x.color, agent.actions.values()[:n_rel_actions])
+markers = map(lambda x: x.marker, agent.actions.values()[:n_rel_actions])
 
 plt.figure()
 plt.title("Desirability per action of all steps in the simulation")
-for i in range(n_actions):
+for i in range(n_rel_actions):
     plt.plot(agent.hist_desirability[i, :], label=labels[i], color=colors[i],
-             marker='*')
+             marker=markers[i], mfc='none')
 plt.legend()
 
 plt.figure()
 plt.title("Desirability per action in the last step of the successful trials")
-for i in range(n_actions):
+for i in range(n_rel_actions):
     plt.plot(last_action_desirability[i, :], label=labels[i], color=colors[i],
-             marker='*')
+             marker=markers[i], mfc='none')
 plt.legend()
 
 plt.figure()
 plt.title("Executability error of successful trials")
-plt.plot(executability_error, marker='*', label='Mean executability error')
+plt.plot(executability_error, 'o', marker='*',
+         label='Mean executability error')
 plt.legend()
 
 plt.figure()
 plt.title("Executability error of all trials")
-plt.plot(total_executability_error, marker='*',
+plt.plot(total_executability_error, 'o', marker='*',
          label='Mean executability error of all trials')
 plt.legend()
 
 plt.figure()
 plt.title("Trial length of successful trials")
-plt.plot(success_trial_length, marker='*',
-         label='Mean executability error of all trials')
+plt.plot(success_trial_length, 'o')
 plt.legend()
 
 plt.figure()
 plt.title("Trial length of all trials")
-plt.plot(total_trial_length, marker='*',
-         label='Mean executability error of all trials')
+plt.plot(total_trial_length, 'o')
 plt.legend()
 
 plt.show()

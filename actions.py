@@ -43,10 +43,11 @@ def abs_diff_eq_to(p1, p2, val):
 
 
 class Action:
-    def __init__(self, type, name, color):
+    def __init__(self, type, name, color, marker):
         self.type = type
         self.name = name
         self.color = color
+        self.marker = marker
 
     def preconditions(self, env):
         return True
@@ -57,7 +58,7 @@ class Action:
 
 class Eat(Action):
     def __init__(self):
-        Action.__init__(self, 'relevant', 'eat', 'b')
+        Action.__init__(self, 'relevant', 'eat', 'b', 'o')
 
     def preconditions(self, env):
         """Food in jaws."""
@@ -73,7 +74,7 @@ class Eat(Action):
 
 class GraspJaws(Action):
     def __init__(self):
-        Action.__init__(self, 'relevant', 'grasp_jaws', 'g')
+        Action.__init__(self, 'relevant', 'grasp_jaws', 'g', 's')
 
     def preconditions(self, env):
         """Food close to jaws."""
@@ -89,7 +90,7 @@ class GraspJaws(Action):
 
 class BringToMouth(Action):
     def __init__(self):
-        Action.__init__(self, 'relevant', 'bring_to_mouth', 'r')
+        Action.__init__(self, 'relevant', 'bring_to_mouth', 'r', 'x')
 
     def preconditions(self, env):
         """Food grasped by paw, but not close to mouth."""
@@ -110,7 +111,7 @@ class BringToMouth(Action):
 
 class GraspPaw(Action):
     def __init__(self):
-        Action.__init__(self, 'relevant', 'grasp_paw', 'c')
+        Action.__init__(self, 'relevant', 'grasp_paw', 'c', '.')
 
     def preconditions(self, env):
         """Paw close to food."""
@@ -126,7 +127,7 @@ class GraspPaw(Action):
 
 class ReachFood(Action):
     def __init__(self):
-        Action.__init__(self, 'relevant', 'reach_food', 'm')
+        Action.__init__(self, 'relevant', 'reach_food', 'm', '|')
 
     def preconditions(self, env):
         """Food in tube and paw aligned with or within tube or food on floor
@@ -147,7 +148,7 @@ class ReachFood(Action):
 
 class ReachTube(Action):
     def __init__(self):
-        Action.__init__(self, 'relevant', 'reach_tube', 'y')
+        Action.__init__(self, 'relevant', 'reach_tube', 'y', '*')
 
     def preconditions(self, env):
         """Paw not near tube"""
@@ -158,8 +159,9 @@ class ReachTube(Action):
         """Move paw inside the tube, near the end
         If the food is currently already grasped, it moves with the paw
         """
+        temp_paw = env.paw[:]
         env.paw = env.tube + [3, 1]
-        if np.all(env.food == env.paw):
+        if np.all(env.food == temp_paw):
             env.food = env.paw[:]
         env.compute_population_codes()
         return 0
@@ -167,7 +169,7 @@ class ReachTube(Action):
 
 class Rake(Action):
     def __init__(self):
-        Action.__init__(self, 'relevant', 'rake', 'darkgrey')
+        Action.__init__(self, 'relevant', 'rake', 'darkgrey', 'D')
 
     def preconditions(self, env):
         """Paw at a position both beyond and higher than the food."""
@@ -193,7 +195,7 @@ class Rake(Action):
 
 class LowerNeck(Action):
     def __init__(self):
-        Action.__init__(self, 'relevant', 'lower_neck', 'rosybrown')
+        Action.__init__(self, 'relevant', 'lower_neck', 'rosybrown', '1')
 
     def preconditions(self, env):
         """Neck above lowest position."""
@@ -210,7 +212,7 @@ class LowerNeck(Action):
 
 class RaiseNeck(Action):
     def __init__(self):
-        Action.__init__(self, 'relevant', 'raise_neck', 'darksalmon')
+        Action.__init__(self, 'relevant', 'raise_neck', 'darksalmon', '2')
 
     def preconditions(self, env):
         """Neck below highest position."""
@@ -227,4 +229,4 @@ class RaiseNeck(Action):
 
 class IrrelevantAction(Action):
     def __init__(self):
-        Action.__init__(self, 'irrelevant', 'irrelevant_action', 'brown')
+        Action.__init__(self, 'irrelevant', 'irrelevant_action', 'brown', '')

@@ -12,14 +12,6 @@ class ExternalEnviroment:
 
     def __init__(self, v_max=35):
         self.v_max = v_max
-        # self.food = np.asarray([np.random.randint(0, v_max - 1),
-        #                         np.random.randint(0, v_max - 1)])
-        # self.paw = np.asarray([np.random.randint(0, v_max - 1),
-        #                        np.random.randint(0, v_max - 1)])
-        # self.mouth = np.asarray([np.random.randint(0, v_max - 1),
-        #                         np.random.randint(0, v_max - 1)])
-        # self.tube = np.asarray([np.random.randint(0, v_max - 1),
-        #                         np.random.randint(0, v_max - 1)])
         self.divisor = ((ACQprms.s_p ** 2) * 2 * np.pi)
         self.reset()
 
@@ -28,6 +20,17 @@ class ExternalEnviroment:
         self.paw = np.asarray([0, 0])
         self.mouth = np.asarray([0, self.v_max])
         self.tube = np.asarray([25, 30])
+        self.compute_population_codes()
+
+    def reset_random(self):
+        self.food = np.asarray([np.random.randint(0, self.v_max - 1),
+                                np.random.randint(0, self.v_max - 1)])
+        self.paw = np.asarray([np.random.randint(0, self.v_max - 1),
+                               np.random.randint(0, self.v_max - 1)])
+        self.mouth = np.asarray([np.random.randint(0, self.v_max - 1),
+                                np.random.randint(0, self.v_max - 1)])
+        self.tube = np.asarray([np.random.randint(0, self.v_max - 1),
+                                np.random.randint(0, self.v_max - 1)])
         self.compute_population_codes()
 
     def population_code(self, v1, v2):
