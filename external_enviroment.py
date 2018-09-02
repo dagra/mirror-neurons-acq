@@ -10,10 +10,13 @@ from acq_parameters import ACQparameters as ACQprms
 class ExternalEnviroment:
     """Contains all the info about the external enviroment"""
 
-    def __init__(self, v_max=35):
+    def __init__(self, v_max=35, random=False):
         self.v_max = v_max
         self.divisor = ((ACQprms.s_p ** 2) * 2 * np.pi)
-        self.reset()
+        if random:
+            self.rest_random()
+        else:
+            self.reset()
 
     def reset(self):
         self.food = np.asarray([30, 30])

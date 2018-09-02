@@ -11,9 +11,14 @@ AVAILABLE_ACTIONS = [Eat, GraspJaws, BringToMouth, GraspPaw, ReachFood,
                      ReachTube, Rake, LowerNeck, RaiseNeck, IrrelevantAction]
 
 
+def calc_mirror_system_input(current_state, next_state, hunger):
+    current_state = np.vstack(current_state.values())
+    next_state = np.vstack(next_state.values())
+    return np.append((next_state - current_state).flatten(), hunger)
+
 class Agent:
     def __init__(self, use_mirror_system=False, n_irrelevant_actions=100,
-                 hunger=1, v_max=35):
+                 hunger=1, v_max=35, learn=True):
         self.v_max = v_max
         self.ex_max = 1
         # In the paper ex_min = -5
@@ -21,7 +26,7 @@ class Agent:
         self.ex_min = -0.5
         # self.ex_min = -2
         self.use_mirror_system = use_mirror_system
-        self.learn = True
+        self.learn = learn
 
         self.n_irr_actions = n_irrelevant_actions
         self.actions = [a() for a in AVAILABLE_ACTIONS[:-1]]
@@ -66,13 +71,19 @@ class Agent:
         """
         self.env = env
         percept = self.perceive(env)
+        self.current_state = percept
         selected_action, selected_action_i, desir = self.actor(
             percept, self.get_internal_state(), True)
+        self.training_signal = np.asarray(
+            map(lambda x: x == selected_action,
+                self.actions.values())).astype('float')
         executable = selected_action.preconditions(env)
         if executable:
             r_signal = selected_action.effects(env, self)
+            self.next_state = self.perceive(env)
         else:
             r_signal = 0
+            self.next_state = None
 
         if self.learn:
             r_ex = self.get_executability_reinforcement(selected_action,
@@ -217,15 +228,15 @@ class Agent:
         #     desir
 
         # Debug
-        if self.actions.keys()[selected_action_i] == 'grasp_jaws' or \
-           self.actions.keys()[selected_action_i] == 'bring_to_mouth':
-            print self.actions.keys()[selected_action_i]
-            print "r={}, signal={}, next_des={}, weight={}, desir={}".format(
-                reinforce, r_signal, next_des, self.w_is[next_action_i], desir)
-            print "selected action={}, next={}".format(selected_action_i,
-                                                       next_action_i)
-            print self.get_executability(self.perceive(env), False)
-            env.print_current_state()
+        # if self.actions.keys()[selected_action_i] == 'grasp_jaws' or \
+        #    self.actions.keys()[selected_action_i] == 'bring_to_mouth':
+        #     print self.actions.keys()[selected_action_i]
+        #     print "r={}, signal={}, next_des={}, weight={}, desir={}".format(
+        #         reinforce, r_signal, next_des, self.w_is[next_action_i], desir)
+        #     print "selected action={}, next={}".format(selected_action_i,
+        #                                                next_action_i)
+        #     print self.get_executability(self.perceive(env), False)
+        #     env.print_current_state()
 
         if -1e03 < reinforce < +1e-03:
             reinforce = 0
