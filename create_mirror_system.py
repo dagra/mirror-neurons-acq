@@ -18,45 +18,71 @@ from external_enviroment import ExternalEnviroment
 np.set_printoptions(precision=3)
 
 
+def normalize_minmax(dataset):
+    x = []
+    y = []
+    for d in dataset:
+        x.append(d[0])
+        y.append(d[1])
+    x = np.asarray(x)
+    y = np.asarray(y)
+    max_x = np.max(x)
+    min_x = np.min(x)
+    x = (x - min_x) / float(max_x - min_x)
+    x = x * 2 - 1
+    print np.max(x), np.min(x)
+    y[y == 0] = -1
+    d = []
+    for i in range(len(dataset)):
+        d.append([x[i], y[i]])
+    return np.asarray(d)
+
+
 def create_dataset(size=5000):
+    start_time = time.time()
     env = ExternalEnviroment()
     agent = Agent(n_irrelevant_actions=0)
     dataset = []
-    i = 0
-    while i < int(size / 4):
-        env.reset_random()
-        executed = agent.act(env)
-        if executed:
-            dataset.append([calc_mirror_system_input(agent.current_state,
-                                                     agent.next_state,
-                                                     agent.hunger),
-                           agent.training_signal])
-            i += 1
-            if i % 200 == 0:
-                print "N = ", i
-    i = 0
+    samples_counter = 0
     max_actions = 50
-    while i < int(3 * size / 4):
-        if i % 200 == 0:
+    counter_per_class = np.zeros(len(AVAILABLE_ACTIONS[:-1]))
+    max_per_class = int(size / (len(counter_per_class) + 1))
+    counter_zero = 0
+    max_zero = max_per_class
+    zeros = np.zeros(4900)
+    g_i = 0
+    while samples_counter < int(size):
+        if g_i % 5 == 0:
             agent = Agent(n_irrelevant_actions=0)
+            print g_i, samples_counter, counter_per_class, counter_zero
+            if g_i % 10 == 0:
+                env.reset_random()
+            else:
+                env.reset()
         n_tried_actions = 0
         while n_tried_actions < max_actions:
             executed = agent.act(env)
             n_tried_actions += 1
             if executed:
-                dataset.append([calc_mirror_system_input(agent.current_state,
-                                                         agent.next_state,
-                                                         agent.hunger),
-                               agent.training_signal])
-                i += 1
-                if i % 200 == 0:
-                    print "N = ", i
+                inp = calc_mirror_system_input(agent.current_state,
+                                               agent.next_state,
+                                               agent.hunger)
+                action_i = np.nonzero(agent.training_signal)
+                if counter_per_class[action_i] < max_per_class:
+                    dataset.append([inp, agent.training_signal])
+                    samples_counter += 1
+                    counter_per_class[action_i] += 1
+            elif counter_zero < max_zero:
+                dataset.append([np.append(zeros, agent.hunger),
+                                np.zeros(len(AVAILABLE_ACTIONS[:-1]))])
+                samples_counter += 1
+                counter_zero += 1
             if agent.hunger == 0:
+                agent.hunger = 1
                 break
+        g_i += 1
 
-        # Reset agent and enviroment
-        agent.hunger = 1
-        env.reset()
+    print "Dataset creation time: {} sec.".format(time.time() - start_time)
     return np.asarray(dataset)
 
 
@@ -68,10 +94,19 @@ class Model(nn.Module):
         # values in range (-inf, 0) and the priming is before the
         # application of the function, x cannot be larger than 0
         # so there cannot be any reinforcement signal.
-        self.l1 = nn.Sequential(nn.Linear(np.size(trndataX[0], 0), 60),
-                                nn.Sigmoid(),
-                                nn.Linear(60, np.size(trndataY[0], 0)),
-                                nn.Sigmoid())
+        self.l1 = nn.Sequential(nn.Dropout(p=0.5),
+                                nn.Linear(np.size(trndataX[0], 0), 500),
+                                nn.LeakyReLU(),
+                                nn.Dropout(p=0.5),
+                                nn.Linear(500, 100),
+                                nn.LeakyReLU(),
+                                nn.Dropout(p=0.5),
+                                nn.Linear(100, 40),
+                                nn.LeakyReLU(),
+                                nn.Linear(40, 20),
+                                nn.LeakyReLU(),
+                                nn.Linear(20, np.size(trndataY[0], 0)),)
+                                # nn.Tanh())
 
     def forward(self, x):
         out = self.l1(x)
@@ -190,7 +225,7 @@ def evaluate_network(net, dataset, useCuda=False):
     print "Actions: ", map(lambda x: x().name, AVAILABLE_ACTIONS[:-1])
 
 
-def main(train_prc=0.8, dataset_fname=None, useCuda=False):
+def create_network(train_prc=0.8, dataset_fname=None, useCuda=False):
     if train_prc <= 0. or train_prc >= 1:
         raise ValueError("Train percentile must be in range (0,1)")
     # Create dataset
@@ -203,6 +238,7 @@ def main(train_prc=0.8, dataset_fname=None, useCuda=False):
         print "Saved dataset as: ", dataset_fname
     np.random.shuffle(dataset)
 
+    dataset = normalize_minmax(dataset)
     # Split datasets to train/test
     size_train_ds = int(len(dataset) * train_prc)
     size_test_ds = len(dataset) - size_train_ds
@@ -214,22 +250,28 @@ def main(train_prc=0.8, dataset_fname=None, useCuda=False):
     print "Sample input size: X={}, Y={}".format(train_ds[0, 0].shape,
                                                  train_ds[0, 1].shape)
     print "Sample input: X={}, Y={}".format(train_ds[0, 0], train_ds[0, 1])
-    print "Sample input X, nonzero: ", np.nonzero(train_ds[0, 0])[0]
-    print "Examples per class in train set: ", train_ds[:, 1].sum()
-    print "Examples per class in test set: ", test_ds[:, 1].sum()
-
+    print "Sample input X, nonzero: ", np.nonzero(train_ds[100, 0])[0]
+    print "Examples per class in train set: ", train_ds[:, 1].shape
+    print "Examples per class in test set: ", test_ds[:, 1].shape
     # Create neural network model
     net = Model(train_ds[:, 0], train_ds[:, 1])
     # Create trainer for the model
     trainer = Trainer(net, train_ds[:, 0], train_ds[:, 1], useCuda)
     # Train the model
-    trainer.train(epochs=15)
+    try:
+        trainer.train(epochs=15)
+    except KeyboardInterrupt:
+        pass
 
     # Evaluate network
+    print "Evaluation in test set"
     evaluate_network(net, test_ds, useCuda)
+    print "---------------"
+    print "Evaluation in complete  dataset"
+    evaluate_network(net, dataset)
 
     return net
 
 if __name__ == "__main__":
-    net = main(dataset_fname='dataset_5004.npz')
+    net = create_network(dataset_fname='dataset_5000.npz')
     torch.save(net, "network")

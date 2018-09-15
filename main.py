@@ -9,16 +9,36 @@ import time
 
 import matplotlib.pyplot as plt
 import numpy as np
+import torch
 
 from agent import Agent
 from external_enviroment import ExternalEnviroment
+from create_mirror_system import (Model, create_network,
+                                  evaluate_network)
+
+# Use mirror system
+use_mirror_system = True
+load_model = True
+fname_model = 'network'
+net = None
+dataset_fname = 'dataset_10002.npz'
+if use_mirror_system and load_model:
+    net = torch.load(fname_model)
+elif use_mirror_system:
+    net = create_network(dataset_fname=dataset_fname)
+    torch.save(net, fname_model)
+
+# if net:
+#     dataset = np.load(dataset_fname)['dataset']
+#     evaluate_network(net, dataset)
 
 # Initialization
 env = ExternalEnviroment()
 
-agent = Agent(n_irrelevant_actions=5)
+agent = Agent(use_mirror_system=use_mirror_system,
+              n_irrelevant_actions=0, mirror_system=net)
 
-max_eat = 200
+max_eat = 100
 max_actions = 50
 
 n_rel_actions = agent.n_actions - agent.n_irr_actions
@@ -39,6 +59,11 @@ while trial_success < max_eat:
     total_executability_error.append(0)
     while n_tried_actions < max_actions:
         executed = agent.act(env)
+        # if agent.next_state:
+        #     ms_input = calc_mirror_system_input(agent.current_state,
+        #                                         agent.next_state,
+        #                                         agent.hunger)
+        #     print ms_input, len(ms_input)
         executability_error[trial_success] += int(not executed)
         total_executability_error[trial] += int(not executed)
         n_tried_actions += 1

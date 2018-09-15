@@ -43,7 +43,7 @@ class ACQparameters:
     # unstable when this value is too large
     # In the paper a = 0.1
     # The model is very sensitive of this parameter
-    a = 0.01
+    a = 0.1
 
     # Desirability discount rate
     # Determines maximal length of action sequences that can be

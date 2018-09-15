@@ -12,7 +12,12 @@ class ExternalEnviroment:
 
     def __init__(self, v_max=35, random=False):
         self.v_max = v_max
-        self.divisor = ((ACQprms.s_p ** 2) * 2 * np.pi)
+        # Create constants for optimization
+        self.outer_divisor = ((ACQprms.s_p ** 2) * 2 * np.pi)
+        self.inner_divisor = 2 * ACQprms.s_p**2
+        self.x = np.repeat(np.arange(v_max)[..., np.newaxis], v_max, axis=1)
+        self.y = np.repeat(np.arange(v_max)[..., np.newaxis], v_max, axis=1).T
+
         if random:
             self.rest_random()
         else:
@@ -39,13 +44,23 @@ class ExternalEnviroment:
     def population_code(self, v1, v2):
         dx, dy = v2[0] - v1[0], v2[1] - v1[1]
         norm = int(self.v_max / 2)
-        code = np.zeros((self.v_max, self.v_max))
-        for x in range(code.shape[0]):
-            for y in range(code.shape[1]):
-                code[x, y] = np.exp((-(dx - (x - norm))**2 -
-                                    (dy - (y - norm))**2) /
-                                    2 * ACQprms.s_p**2) / self.divisor
-        return code
+        code = np.zeros((self.v_max, self.v_max)).astype('float')
+        code1 = np.zeros((self.v_max, self.v_max)).astype('float')
+        # for x in range(code.shape[0]):
+        #     for y in range(code.shape[1]):
+        #         code1[x, y] = np.exp((-(dx - (x - norm))**2 -
+        #                             (dy - (y - norm))**2) /(
+        #                             2 * ACQprms.s_p**2))
+        x = self.x
+        y = self.y
+        # print x, y
+        # print dx, dy, norm, self.inner_divisor,
+        code = np.exp((-(dx - (x - norm))**2 - (dy - (y - norm))**2) /
+                      self.inner_divisor).astype('float')
+        # print code > 0.01
+        # print code1
+        # print np.all(code1 == code), np.nonzero(code1 == code)
+        return code / self.outer_divisor
 
     def compute_population_codes(self):
         self.pf = self.population_code(self.paw, self.food)
