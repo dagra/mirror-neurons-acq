@@ -14,7 +14,7 @@ class ExternalEnviroment:
         self.v_max = v_max
         # Create constants for optimization
         self.outer_divisor = ((ACQprms.s_p ** 2) * 2 * np.pi)
-        self.inner_divisor = 2 * ACQprms.s_p**2
+        self.inner_divisor = 2 * (ACQprms.s_p**2)
         self.x = np.repeat(np.arange(v_max)[..., np.newaxis], v_max, axis=1)
         self.y = np.repeat(np.arange(v_max)[..., np.newaxis], v_max, axis=1).T
 
@@ -45,7 +45,7 @@ class ExternalEnviroment:
         dx, dy = v2[0] - v1[0], v2[1] - v1[1]
         norm = int(self.v_max / 2)
         code = np.zeros((self.v_max, self.v_max)).astype('float')
-        code1 = np.zeros((self.v_max, self.v_max)).astype('float')
+        # code1 = np.zeros((self.v_max, self.v_max)).astype('float')
         # for x in range(code.shape[0]):
         #     for y in range(code.shape[1]):
         #         code1[x, y] = np.exp((-(dx - (x - norm))**2 -

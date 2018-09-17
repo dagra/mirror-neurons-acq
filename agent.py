@@ -17,12 +17,13 @@ AVAILABLE_ACTIONS = [Eat, GraspJaws, BringToMouth, GraspPaw, ReachFood,
 def calc_mirror_system_input(current_state, next_state, hunger):
     current_state = np.vstack(current_state.values())
     next_state = np.vstack(next_state.values())
-    return np.append((next_state - current_state).flatten(), hunger)
+    return np.append((next_state - current_state).flatten(), 10000 * (1 - hunger))
 
 
 class Agent:
     def __init__(self, use_mirror_system=False, n_irrelevant_actions=100,
-                 hunger=1, v_max=35, learn=True, mirror_system=None):
+                 hunger=1, v_max=35, learn=True, mirror_system=None,
+                 useCuda=False):
         self.v_max = v_max
         self.ex_max = 1
         # In the paper ex_min = -5
@@ -68,6 +69,8 @@ class Agent:
         self.dw_bf = np.zeros((v_max, v_max, self.n_actions))
         self.dw_pb = np.zeros((v_max, v_max, self.n_actions))
 
+        self.useCuda = useCuda
+
     def act(self, env):
         """Perform an action in the enviroment.
 
@@ -79,7 +82,7 @@ class Agent:
         self.env = env
         percept = self.perceive(env)
         self.current_state = percept
-        selected_action, selected_action_i, desir, priority = self.actor(
+        selected_action, selected_action_i, des_vec, priority = self.actor(
             percept, self.get_internal_state(), True)
         self.training_signal = np.asarray(
             map(lambda x: x == selected_action,
@@ -94,12 +97,13 @@ class Agent:
 
         if self.use_mirror_system:
             ms_output = self.get_mirror_system_output(priority)
-            desir = np.max(ms_output)
+            action_rec = np.max(ms_output)
             t = selected_action_i
             # print ms_output, desir
             # print np.argwhere(ms_output == desir)
-            selected_action_i = np.argwhere(ms_output == desir)[0][0]
-            # print t, selected_action_i
+            selected_action_i = np.argwhere(ms_output == action_rec)[0][0]
+            # if selected_action.name in ('eat'):
+            #     print executable, t, selected_action_i, ms_output
         else:
             ms_output = None
 
@@ -108,8 +112,9 @@ class Agent:
                                                         executable, priority,
                                                         ms_output)
 
+            desir = des_vec[selected_action_i]
             r_des, eligibility_trace = self.get_desirability_reinforcement(
-                selected_action_i, env, executable, r_signal, desir)
+                selected_action_i, env, executable, r_signal, desir, ms_output)
 
             self.update_executability(r_ex, percept)
 
@@ -152,10 +157,13 @@ class Agent:
         e = self.get_executability(percept, noise)
         d = self.get_desirability(internal_state, noise)
         priority = e * d
+        if noise:
+            print ">>>>>>>>>>>>>>>>"
+            print priority, e, d
         max_inds = np.argwhere(priority == np.max(priority)).flatten()
         selected_action_i = np.random.choice(max_inds)
         selected_action = self.actions.values()[selected_action_i]
-        return selected_action, selected_action_i, d[selected_action_i],\
+        return selected_action, selected_action_i, d,\
             priority
 
     def get_executability_reinforcement(self, selected_action, executable,
@@ -164,12 +172,16 @@ class Agent:
         if self.use_mirror_system:
             reinforce = np.zeros(self.n_actions)
             for i in range(len(ms_output)):
-                if priority[i] > 0 and ms_output[i] < ACQprms.psi:
+                # x is ambiguous in the paper i.e. is it the priority vector
+                # or an one-hot vector containing the selected action?
+                # if priority[i] > 0 and ms_output[i] < ACQprms.psi:
+                #     reinforce[i] = -1
+                if self.actions.values()[i] == selected_action and ms_output[i] < ACQprms.psi:
                     reinforce[i] = -1
-                elif ms_output[i] > 0:
+                elif ms_output[i] > ACQprms.psi:
                     reinforce[i] = 1
-            if not executable:
-                print priority, ms_output, reinforce, ACQprms.psi
+            if selected_action.name:
+                print selected_action.name, priority, ms_output, reinforce, ACQprms.psi
             return reinforce.astype('float')
         # If the mirror system is absent, the paper doesn't describe what
         # the reinforcement is.
@@ -201,6 +213,9 @@ class Agent:
                 ACQprms.a * reinforce[i] * prev_state['bf'] * (1 - momentum)
             self.dw_pb[..., i] = self.dw_pb[..., i] * momentum + \
                 ACQprms.a * reinforce[i] * prev_state['pb'] * (1 - momentum)
+            if i == 0 and reinforce[i] == 1:
+                print "------------"
+                print self.dw_pf[..., i].sum(), self.dw_mf[..., i].sum(), self.dw_bf[..., i].sum(), self.dw_pb[..., i].sum(),
             self.w_pf[..., i] += self.dw_pf[..., i]
             self.w_mf[..., i] += self.dw_mf[..., i]
             self.w_bf[..., i] += self.dw_bf[..., i]
@@ -218,21 +233,35 @@ class Agent:
         self.w_pb[self.w_pb > ub] = ub
 
     def get_desirability_reinforcement(self, selected_action_i, env,
-                                       executable, r_signal, desir):
+                                       executable, r_signal, desir,
+                                       ms_output):
         """Compute desirability reinforcement"""
-        if not executable or \
-           self.actions.values()[selected_action_i].type == 'irrelevant':
+        # if not executable or \
+        #    self.actions.values()[selected_action_i].type == 'irrelevant':
+        #     return 0, np.zeros(self.n_actions)
+        if self.actions.values()[selected_action_i].type == 'irrelevant':
             return 0, np.zeros(self.n_actions)
 
         # Compute next selected action, but without noise
-        _, next_action_i, next_des, _ = self.actor(self.perceive(env),
-                                                   self.get_internal_state(),
-                                                   False)
+        _, next_action_i, next_des_vec, p = self.actor(self.perceive(env),
+                                                       self.get_internal_state(),
+                                                       False)
+        next_des = next_des_vec[next_action_i]
 
         if self.use_mirror_system:
             reinforce = r_signal + ACQprms.gamma * next_des - desir
-            eligibility_trace = np.zeros(self.n_actions)
-            eligibility_trace[selected_action_i] = 1
+            reinforce = r_signal + ACQprms.gamma * next_des - \
+                self.w_is[selected_action_i]
+            # eligibility_trace = np.zeros(self.n_actions)
+            eligibility_trace = (ms_output > ACQprms.s_p).astype('int')
+            # eligibility_trace = np.tanh(ms_output)
+            if self.actions.keys()[selected_action_i] in ('grasp_jaws'):
+                print self.actions.keys()[selected_action_i]
+                print "r={}, signal={}, next_des={}, weight={}, desir={}".format(
+                    reinforce, r_signal, next_des, self.w_is[next_action_i], desir)
+                print "selected action={}, next={}".format(selected_action_i,
+                                                           next_action_i)
+                print reinforce, eligibility_trace, next_des_vec, p
             return reinforce, eligibility_trace
 
         # If the mirror system is absent, the paper doesn't describe what
@@ -280,13 +309,12 @@ class Agent:
         self.w_is += ACQprms.a * reinforce * eligibility_trace
 
     def get_mirror_system_output(self, x):
-        useCuda = False
         ms_input = calc_mirror_system_input(self.current_state,
                                             self.next_state, self.hunger)
-        FloatTensor = torch.cuda.FloatTensor if useCuda else torch.FloatTensor
+        FloatTensor = torch.cuda.FloatTensor if self.useCuda else torch.FloatTensor
         out = self.mirror_system(Variable(torch.from_numpy(
             np.asarray([ms_input])).type(FloatTensor)))
-        if useCuda:
+        if self.useCuda:
             out = out.cpu().data.numpy()[0]
         else:
             out = out.data.numpy()[0]

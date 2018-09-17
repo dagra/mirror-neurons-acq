@@ -19,6 +19,7 @@ from create_mirror_system import (Model, create_network,
 # Use mirror system
 use_mirror_system = True
 load_model = True
+useCuda = True
 fname_model = 'network'
 net = None
 dataset_fname = 'dataset_10002.npz'
@@ -36,7 +37,8 @@ elif use_mirror_system:
 env = ExternalEnviroment()
 
 agent = Agent(use_mirror_system=use_mirror_system,
-              n_irrelevant_actions=0, mirror_system=net)
+              n_irrelevant_actions=0, mirror_system=net,
+              useCuda=useCuda)
 
 max_eat = 100
 max_actions = 50
@@ -52,48 +54,50 @@ last_action_desirability = np.zeros((n_rel_actions, max_eat)) - 1
 trial = 0
 trial_success = 0
 # A trial is successful if the agent performs the task (eat)
-while trial_success < max_eat:
-    n_tried_actions = 0
-    start_time = time.time()
-    executability_error[trial_success] = 0
-    total_executability_error.append(0)
-    while n_tried_actions < max_actions:
-        executed = agent.act(env)
-        # if agent.next_state:
-        #     ms_input = calc_mirror_system_input(agent.current_state,
-        #                                         agent.next_state,
-        #                                         agent.hunger)
-        #     print ms_input, len(ms_input)
-        executability_error[trial_success] += int(not executed)
-        total_executability_error[trial] += int(not executed)
-        n_tried_actions += 1
-        if agent.hunger == 0:
-            last_action_desirability[:, trial_success] = \
-                agent.hist_desirability[:n_rel_actions, -1]
-            executability_error[trial_success] /= float(n_tried_actions)
-            success_trial_length[trial_success] = n_tried_actions
-            trial_success += 1
-            break
+try:
+    while trial_success < max_eat:
+        n_tried_actions = 0
+        start_time = time.time()
+        executability_error[trial_success] = 0
+        total_executability_error.append(0)
+        while n_tried_actions < max_actions:
+            executed = agent.act(env)
+            # if agent.next_state:
+            #     ms_input = calc_mirror_system_input(agent.current_state,
+            #                                         agent.next_state,
+            #                                         agent.hunger)
+            #     print ms_input, len(ms_input)
+            executability_error[trial_success] += int(not executed)
+            total_executability_error[trial] += int(not executed)
+            n_tried_actions += 1
+            if agent.hunger == 0:
+                last_action_desirability[:, trial_success] = \
+                    agent.hist_desirability[:n_rel_actions, -1]
+                executability_error[trial_success] /= float(n_tried_actions)
+                success_trial_length[trial_success] = n_tried_actions
+                trial_success += 1
+                break
 
-    total_executability_error[trial] /= float(n_tried_actions)
-    total_trial_length.append(n_tried_actions)
+        total_executability_error[trial] /= float(n_tried_actions)
+        total_trial_length.append(n_tried_actions)
 
-    print "###########"
-    print "[{}]: {}/{}-Ate: {}-actions:{}-exec rate: {}-time:{} sec".format(
-        trial + 1, trial_success, max_eat, agent.hunger == 0,
-        n_tried_actions, total_executability_error[trial],
-        np.round(time.time() -
-                 start_time))
-    # Debug
-    print agent.action_counter
+        print "###########"
+        print "[{}]: {}/{}-Ate: {}-actions:{}-exec rate: {}-time:{} sec".format(
+            trial + 1, trial_success, max_eat, agent.hunger == 0,
+            n_tried_actions, total_executability_error[trial],
+            np.round(time.time() -
+                     start_time))
+        # Debug
+        print agent.action_counter
 
-    agent.action_counter = np.zeros(agent.n_actions)
-    trial += 1
+        agent.action_counter = np.zeros(agent.n_actions)
+        trial += 1
 
-    # Reset agent and enviroment
-    agent.hunger = 1
-    env.reset()
-
+        # Reset agent and enviroment
+        agent.hunger = 1
+        env.reset()
+except KeyboardInterrupt:
+    pass
 
 # Plot results
 

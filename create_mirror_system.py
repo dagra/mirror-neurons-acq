@@ -18,6 +18,15 @@ from external_enviroment import ExternalEnviroment
 np.set_printoptions(precision=3)
 
 
+def check_dataset(dataset):
+    for i in range(len(dataset)):
+        x = dataset[i][0]
+        y = dataset[i][1]
+        for j in range(len(dataset)):
+            if np.all(dataset[j][0] == x) and not np.all(dataset[j][1] == y):
+                raise ValueError("Dataset is insconsistent")
+
+
 def normalize_minmax(dataset):
     x = []
     y = []
@@ -28,8 +37,9 @@ def normalize_minmax(dataset):
     y = np.asarray(y)
     max_x = np.max(x)
     min_x = np.min(x)
-    x = (x - min_x) / float(max_x - min_x)
-    x = x * 2 - 1
+    # x = (x - min_x) / float(max_x - min_x)
+    # x = x * 2 - 1
+    # x[:, -1] = x[:, -1] * 100
     print np.max(x), np.min(x)
     y[y == 0] = -1
     d = []
@@ -68,7 +78,8 @@ def create_dataset(size=5000):
                                                agent.next_state,
                                                agent.hunger)
                 action_i = np.nonzero(agent.training_signal)
-                if counter_per_class[action_i] < max_per_class:
+                if counter_per_class[action_i] < max_per_class and \
+                   (not np.all(inp[:-1] == 0) or inp[-1] == 1):
                     dataset.append([inp, agent.training_signal])
                     samples_counter += 1
                     counter_per_class[action_i] += 1
@@ -79,6 +90,7 @@ def create_dataset(size=5000):
                 counter_zero += 1
             if agent.hunger == 0:
                 agent.hunger = 1
+                env.reset()
                 break
         g_i += 1
 
@@ -94,21 +106,29 @@ class Model(nn.Module):
         # values in range (-inf, 0) and the priming is before the
         # application of the function, x cannot be larger than 0
         # so there cannot be any reinforcement signal.
-        self.l1 = nn.Sequential(nn.Dropout(p=0.5),
-                                nn.Linear(np.size(trndataX[0], 0), 500),
+        self.l1 = nn.Sequential(nn.Linear(np.size(trndataX[0], 0), 500),
                                 nn.LeakyReLU(),
-                                nn.Dropout(p=0.5),
+                                # nn.Dropout(p=0.5),
                                 nn.Linear(500, 100),
                                 nn.LeakyReLU(),
-                                nn.Dropout(p=0.5),
-                                nn.Linear(100, 40),
+                                # nn.Dropout(p=0.5),
+                                nn.Linear(100, 50),
                                 nn.LeakyReLU(),
-                                nn.Linear(40, 20),
+                                nn.Linear(50, 20),
                                 nn.LeakyReLU(),
                                 nn.Linear(20, np.size(trndataY[0], 0)),)
                                 # nn.Tanh())
+        # self.l1 = nn.Sequential(nn.Conv1d(1, 20, 10, stride=3),
+        #                         nn.LeakyReLU(),
+        #                         nn.Conv1d(20, 10, 5, stride=1),
+        #                         nn.LeakyReLU(),
+        #                         nn.Conv1d(10, 10, 5, stride=1),
+        #                         nn.LeakyReLU(),
+        #                         nn.Conv1d(10, 1, 1),
+        #                         nn.Linear(1623, np.size(trndataY[0], 0)))
 
     def forward(self, x):
+        # out = self.l1(x.view(1, 1, -1))
         out = self.l1(x)
         return out
 
@@ -225,7 +245,7 @@ def evaluate_network(net, dataset, useCuda=False):
     print "Actions: ", map(lambda x: x().name, AVAILABLE_ACTIONS[:-1])
 
 
-def create_network(train_prc=0.8, dataset_fname=None, useCuda=False):
+def create_network(train_prc=0.8, dataset_fname=None, useCuda=True):
     if train_prc <= 0. or train_prc >= 1:
         raise ValueError("Train percentile must be in range (0,1)")
     # Create dataset
@@ -259,7 +279,7 @@ def create_network(train_prc=0.8, dataset_fname=None, useCuda=False):
     trainer = Trainer(net, train_ds[:, 0], train_ds[:, 1], useCuda)
     # Train the model
     try:
-        trainer.train(epochs=15)
+        trainer.train(epochs=100)
     except KeyboardInterrupt:
         pass
 
@@ -268,7 +288,7 @@ def create_network(train_prc=0.8, dataset_fname=None, useCuda=False):
     evaluate_network(net, test_ds, useCuda)
     print "---------------"
     print "Evaluation in complete  dataset"
-    evaluate_network(net, dataset)
+    evaluate_network(net, dataset, useCuda)
 
     return net
 
