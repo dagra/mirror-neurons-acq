@@ -17,7 +17,7 @@ AVAILABLE_ACTIONS = [Eat, GraspJaws, BringToMouth, GraspPaw, ReachFood,
 def calc_mirror_system_input(current_state, next_state, hunger):
     current_state = np.vstack(current_state.values())
     next_state = np.vstack(next_state.values())
-    return np.append((next_state - current_state).flatten(), 10000 * (1 - hunger))
+    return np.append((next_state - current_state).flatten(), (1 - hunger))
 
 
 class Agent:
@@ -27,9 +27,6 @@ class Agent:
         self.v_max = v_max
         self.ex_max = 1
         # In the paper ex_min = -5
-        # self.ex_min = -5 doesn't work
-        # self.ex_min = -0.5
-        # self.ex_min = -2
         self.ex_min = -5
         self.use_mirror_system = use_mirror_system
         self.learn = learn
@@ -98,12 +95,7 @@ class Agent:
         if self.use_mirror_system:
             ms_output = self.get_mirror_system_output(priority)
             action_rec = np.max(ms_output)
-            t = selected_action_i
-            # print ms_output, desir
-            # print np.argwhere(ms_output == desir)
             selected_action_i = np.argwhere(ms_output == action_rec)[0][0]
-            # if selected_action.name in ('eat'):
-            #     print executable, t, selected_action_i, ms_output
         else:
             ms_output = None
 
@@ -157,9 +149,6 @@ class Agent:
         e = self.get_executability(percept, noise)
         d = self.get_desirability(internal_state, noise)
         priority = e * d
-        if noise:
-            print ">>>>>>>>>>>>>>>>"
-            print priority, e, d
         max_inds = np.argwhere(priority == np.max(priority)).flatten()
         selected_action_i = np.random.choice(max_inds)
         selected_action = self.actions.values()[selected_action_i]
@@ -176,12 +165,11 @@ class Agent:
                 # or an one-hot vector containing the selected action?
                 # if priority[i] > 0 and ms_output[i] < ACQprms.psi:
                 #     reinforce[i] = -1
-                if self.actions.values()[i] == selected_action and ms_output[i] < ACQprms.psi:
+                if self.actions.values()[i] == selected_action and \
+                   ms_output[i] < ACQprms.psi:
                     reinforce[i] = -1
                 elif ms_output[i] > ACQprms.psi:
                     reinforce[i] = 1
-            if selected_action.name:
-                print selected_action.name, priority, ms_output, reinforce, ACQprms.psi
             return reinforce.astype('float')
         # If the mirror system is absent, the paper doesn't describe what
         # the reinforcement is.
@@ -213,9 +201,6 @@ class Agent:
                 ACQprms.a * reinforce[i] * prev_state['bf'] * (1 - momentum)
             self.dw_pb[..., i] = self.dw_pb[..., i] * momentum + \
                 ACQprms.a * reinforce[i] * prev_state['pb'] * (1 - momentum)
-            if i == 0 and reinforce[i] == 1:
-                print "------------"
-                print self.dw_pf[..., i].sum(), self.dw_mf[..., i].sum(), self.dw_bf[..., i].sum(), self.dw_pb[..., i].sum(),
             self.w_pf[..., i] += self.dw_pf[..., i]
             self.w_mf[..., i] += self.dw_mf[..., i]
             self.w_bf[..., i] += self.dw_bf[..., i]
@@ -243,9 +228,10 @@ class Agent:
             return 0, np.zeros(self.n_actions)
 
         # Compute next selected action, but without noise
-        _, next_action_i, next_des_vec, p = self.actor(self.perceive(env),
-                                                       self.get_internal_state(),
-                                                       False)
+        _, next_action_i, next_des_vec, p = self.actor(
+            self.perceive(env),
+            self.get_internal_state(),
+            False)
         next_des = next_des_vec[next_action_i]
 
         if self.use_mirror_system:
@@ -254,14 +240,8 @@ class Agent:
                 self.w_is[selected_action_i]
             # eligibility_trace = np.zeros(self.n_actions)
             eligibility_trace = (ms_output > ACQprms.s_p).astype('int')
+            eligibility_trace = (ms_output > 0).astype('int')
             # eligibility_trace = np.tanh(ms_output)
-            if self.actions.keys()[selected_action_i] in ('grasp_jaws'):
-                print self.actions.keys()[selected_action_i]
-                print "r={}, signal={}, next_des={}, weight={}, desir={}".format(
-                    reinforce, r_signal, next_des, self.w_is[next_action_i], desir)
-                print "selected action={}, next={}".format(selected_action_i,
-                                                           next_action_i)
-                print reinforce, eligibility_trace, next_des_vec, p
             return reinforce, eligibility_trace
 
         # If the mirror system is absent, the paper doesn't describe what
@@ -278,14 +258,8 @@ class Agent:
         # Both alternatives are written below.
         # Because noise is inside the given desirability of the selected action
         # these alternatives are NOT equal.
-        if self.get_internal_state():
-            reinforce = r_signal + ACQprms.gamma * self.w_is[next_action_i] - \
-                self.w_is[selected_action_i]
-        else:
-            reinforce = r_signal + ACQprms.gamma * 0 - \
-                self.w_is[selected_action_i]
-        # reinforce = r_signal + ACQprms.gamma * next_des - \
-        #     desir
+        reinforce = r_signal + ACQprms.gamma * next_des - \
+            self.w_is[selected_action_i]
 
         # Debug
         # if self.actions.keys()[selected_action_i] == 'grasp_jaws' or \
@@ -311,17 +285,15 @@ class Agent:
     def get_mirror_system_output(self, x):
         ms_input = calc_mirror_system_input(self.current_state,
                                             self.next_state, self.hunger)
-        FloatTensor = torch.cuda.FloatTensor if self.useCuda else torch.FloatTensor
+        FloatTensor = torch.cuda.FloatTensor if self.useCuda \
+            else torch.FloatTensor
         out = self.mirror_system(Variable(torch.from_numpy(
             np.asarray([ms_input])).type(FloatTensor)))
         if self.useCuda:
             out = out.cpu().data.numpy()[0]
         else:
             out = out.data.numpy()[0]
-        # print '--', out
         out += ACQprms.k * x[:self.n_rel_actions]
-        # out = np.log(out) + ACQprms.k * x[:self.n_rel_actions]
-        # print '>>', out
         return out
 
     def get_internal_state(self):

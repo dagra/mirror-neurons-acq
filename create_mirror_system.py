@@ -27,7 +27,7 @@ def check_dataset(dataset):
                 raise ValueError("Dataset is insconsistent")
 
 
-def normalize_minmax(dataset):
+def preprocess_dataset(dataset):
     x = []
     y = []
     for d in dataset:
@@ -35,12 +35,13 @@ def normalize_minmax(dataset):
         y.append(d[1])
     x = np.asarray(x)
     y = np.asarray(y)
-    max_x = np.max(x)
-    min_x = np.min(x)
+    # Normalize minmax
+    # max_x = np.max(x)
+    # min_x = np.min(x)
     # x = (x - min_x) / float(max_x - min_x)
     # x = x * 2 - 1
     # x[:, -1] = x[:, -1] * 100
-    print np.max(x), np.min(x)
+    # Set target 0s to -1
     y[y == 0] = -1
     d = []
     for i in range(len(dataset)):
@@ -79,7 +80,7 @@ def create_dataset(size=5000):
                                                agent.hunger)
                 action_i = np.nonzero(agent.training_signal)
                 if counter_per_class[action_i] < max_per_class and \
-                   (not np.all(inp[:-1] == 0) or inp[-1] == 1):
+                   ((not np.all(inp[:-1] == 0)) or inp[-1] == 1):
                     dataset.append([inp, agent.training_signal])
                     samples_counter += 1
                     counter_per_class[action_i] += 1
@@ -117,18 +118,8 @@ class Model(nn.Module):
                                 nn.Linear(50, 20),
                                 nn.LeakyReLU(),
                                 nn.Linear(20, np.size(trndataY[0], 0)),)
-                                # nn.Tanh())
-        # self.l1 = nn.Sequential(nn.Conv1d(1, 20, 10, stride=3),
-        #                         nn.LeakyReLU(),
-        #                         nn.Conv1d(20, 10, 5, stride=1),
-        #                         nn.LeakyReLU(),
-        #                         nn.Conv1d(10, 10, 5, stride=1),
-        #                         nn.LeakyReLU(),
-        #                         nn.Conv1d(10, 1, 1),
-        #                         nn.Linear(1623, np.size(trndataY[0], 0)))
 
     def forward(self, x):
-        # out = self.l1(x.view(1, 1, -1))
         out = self.l1(x)
         return out
 
@@ -206,7 +197,6 @@ def evaluate_network(net, dataset, useCuda=False):
             out = out.cpu().data.numpy()[0]
         else:
             out = out.data.numpy()[0]
-        # print out, sample[1]
         out = np.where(out == np.amax(out))[0]
         true_out = np.argmax(sample[1])
         if len(out) == 1 and out[0] == true_out:
@@ -245,7 +235,7 @@ def evaluate_network(net, dataset, useCuda=False):
     print "Actions: ", map(lambda x: x().name, AVAILABLE_ACTIONS[:-1])
 
 
-def create_network(train_prc=0.8, dataset_fname=None, useCuda=True):
+def create_network(train_prc=0.8, dataset_fname=None, useCuda=False):
     if train_prc <= 0. or train_prc >= 1:
         raise ValueError("Train percentile must be in range (0,1)")
     # Create dataset
@@ -256,10 +246,10 @@ def create_network(train_prc=0.8, dataset_fname=None, useCuda=True):
         dataset_fname = "dataset_%d.npz" % (len(dataset))
         np.savez_compressed(dataset_fname, dataset=dataset)
         print "Saved dataset as: ", dataset_fname
-    np.random.shuffle(dataset)
 
-    dataset = normalize_minmax(dataset)
+    dataset = preprocess_dataset(dataset)
     # Split datasets to train/test
+    np.random.shuffle(dataset)
     size_train_ds = int(len(dataset) * train_prc)
     size_test_ds = len(dataset) - size_train_ds
     train_ds = dataset[:size_train_ds]
@@ -287,11 +277,12 @@ def create_network(train_prc=0.8, dataset_fname=None, useCuda=True):
     print "Evaluation in test set"
     evaluate_network(net, test_ds, useCuda)
     print "---------------"
-    print "Evaluation in complete  dataset"
+    print "Evaluation in complete dataset"
     evaluate_network(net, dataset, useCuda)
 
     return net
 
 if __name__ == "__main__":
-    net = create_network(dataset_fname='dataset_5000.npz')
+    useCuda = False
+    net = create_network(dataset_fname='dataset_5000.npz', useCuda=useCuda)
     torch.save(net, "network")

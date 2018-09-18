@@ -36,7 +36,7 @@ class ACQparameters:
     # is not activated at 25% of its maximal level
     # (needs to be greater than k)
     # In the paper psi = 0.25
-    psi = 0.25
+    psi = 0.15
 
     # Executability/desirability learning rate
     # Determines rate of weight changes -- the model becomes
