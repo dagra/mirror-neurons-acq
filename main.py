@@ -17,7 +17,7 @@ from create_mirror_system import (Model, create_network,
                                   )
 
 # Use mirror system
-use_mirror_system = True
+use_mirror_system = False
 load_model = True
 useCuda = False
 fname_model = 'network'
