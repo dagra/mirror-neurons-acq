@@ -17,10 +17,14 @@ To start the simulation, execute the main code
   ```python main.py```
 
 ## Sample Results
+### With mirror system
+![desirability per action](../master/images/ms_desirabilities.png)
 
-![desirability per action](../master/images/desirabilities.png)
+![trial length](../master/images/ms_lengths.png)
+### Without mirror system
+![desirability per action](../master/images/no_ms_desirabilities.png)
 
-![trial length](../master/images/lengths.png)
+![trial length](../master/images/no_ms_lengths.png)
 
 ## References
 

@@ -2,26 +2,34 @@
 from collections import OrderedDict
 
 import numpy as np
+import torch
+from torch.autograd import Variable
 
 from actions import (Eat, GraspJaws, BringToMouth, ReachFood, ReachTube,
                      GraspPaw, Rake, LowerNeck, RaiseNeck, IrrelevantAction)
 from acq_parameters import ACQparameters as ACQprms
 
+
 AVAILABLE_ACTIONS = [Eat, GraspJaws, BringToMouth, GraspPaw, ReachFood,
                      ReachTube, Rake, LowerNeck, RaiseNeck, IrrelevantAction]
 
 
+def calc_mirror_system_input(current_state, next_state, hunger):
+    current_state = np.vstack(current_state.values())
+    next_state = np.vstack(next_state.values())
+    return np.append((next_state - current_state).flatten(), (1 - hunger))
+
+
 class Agent:
     def __init__(self, use_mirror_system=False, n_irrelevant_actions=100,
-                 hunger=1, v_max=35):
+                 hunger=1, v_max=35, learn=True, mirror_system=None,
+                 useCuda=False):
         self.v_max = v_max
         self.ex_max = 1
         # In the paper ex_min = -5
-        # self.ex_min = -5 doesn't work
-        self.ex_min = -0.5
-        # self.ex_min = -2
+        self.ex_min = -5
         self.use_mirror_system = use_mirror_system
-        self.learn = True
+        self.learn = learn
 
         self.n_irr_actions = n_irrelevant_actions
         self.actions = [a() for a in AVAILABLE_ACTIONS[:-1]]
@@ -37,6 +45,8 @@ class Agent:
         self.hunger = hunger
 
         self.n_actions = len(self.actions.values())
+
+        self.mirror_system = mirror_system
 
         # Initialize desirability weights to 0
         self.w_is = np.zeros(self.n_actions)
@@ -56,6 +66,8 @@ class Agent:
         self.dw_bf = np.zeros((v_max, v_max, self.n_actions))
         self.dw_pb = np.zeros((v_max, v_max, self.n_actions))
 
+        self.useCuda = useCuda
+
     def act(self, env):
         """Perform an action in the enviroment.
 
@@ -66,20 +78,35 @@ class Agent:
         """
         self.env = env
         percept = self.perceive(env)
-        selected_action, selected_action_i, desir = self.actor(
+        self.current_state = percept
+        selected_action, selected_action_i, des_vec, priority = self.actor(
             percept, self.get_internal_state(), True)
+        self.training_signal = np.asarray(
+            map(lambda x: x == selected_action,
+                self.actions.values())).astype('float')
         executable = selected_action.preconditions(env)
         if executable:
             r_signal = selected_action.effects(env, self)
+            self.next_state = self.perceive(env)
         else:
             r_signal = 0
+            self.next_state = self.current_state
+
+        if self.use_mirror_system:
+            ms_output = self.get_mirror_system_output(priority)
+            action_rec = np.max(ms_output)
+            selected_action_i = np.argwhere(ms_output == action_rec)[0][0]
+        else:
+            ms_output = None
 
         if self.learn:
             r_ex = self.get_executability_reinforcement(selected_action,
-                                                        executable)
+                                                        executable, priority,
+                                                        ms_output)
 
+            desir = des_vec[selected_action_i]
             r_des, eligibility_trace = self.get_desirability_reinforcement(
-                selected_action_i, env, executable, r_signal, desir)
+                selected_action_i, env, executable, r_signal, desir, ms_output)
 
             self.update_executability(r_ex, percept)
 
@@ -125,13 +152,25 @@ class Agent:
         max_inds = np.argwhere(priority == np.max(priority)).flatten()
         selected_action_i = np.random.choice(max_inds)
         selected_action = self.actions.values()[selected_action_i]
-        return selected_action, selected_action_i, d[selected_action_i]
+        return selected_action, selected_action_i, d,\
+            priority
 
-    def get_executability_reinforcement(self, selected_action, executable):
+    def get_executability_reinforcement(self, selected_action, executable,
+                                        priority, ms_output):
         """Compute executability reinforcement"""
         if self.use_mirror_system:
-            # TODO
-            return 0
+            reinforce = np.zeros(self.n_actions)
+            for i in range(len(ms_output)):
+                # x is ambiguous in the paper i.e. is it the priority vector
+                # or an one-hot vector containing the selected action?
+                # if priority[i] > 0 and ms_output[i] < ACQprms.psi:
+                #     reinforce[i] = -1
+                if self.actions.values()[i] == selected_action and \
+                   ms_output[i] < ACQprms.psi:
+                    reinforce[i] = -1
+                elif ms_output[i] > ACQprms.psi:
+                    reinforce[i] = 1
+            return reinforce.astype('float')
         # If the mirror system is absent, the paper doesn't describe what
         # the reinforcement is.
         # So the assumption here is that only the selected action is
@@ -179,15 +218,31 @@ class Agent:
         self.w_pb[self.w_pb > ub] = ub
 
     def get_desirability_reinforcement(self, selected_action_i, env,
-                                       executable, r_signal, desir):
+                                       executable, r_signal, desir,
+                                       ms_output):
         """Compute desirability reinforcement"""
-        if not executable or \
-           self.actions.values()[selected_action_i].type == 'irrelevant':
+        # if not executable or \
+        #    self.actions.values()[selected_action_i].type == 'irrelevant':
+        #     return 0, np.zeros(self.n_actions)
+        if self.actions.values()[selected_action_i].type == 'irrelevant':
             return 0, np.zeros(self.n_actions)
 
+        # Compute next selected action, but without noise
+        _, next_action_i, next_des_vec, p = self.actor(
+            self.perceive(env),
+            self.get_internal_state(),
+            False)
+        next_des = next_des_vec[next_action_i]
+
         if self.use_mirror_system:
-            # TODO
-            return 0
+            reinforce = r_signal + ACQprms.gamma * next_des - desir
+            reinforce = r_signal + ACQprms.gamma * next_des - \
+                self.w_is[selected_action_i]
+            # eligibility_trace = np.zeros(self.n_actions)
+            eligibility_trace = (ms_output > ACQprms.s_p).astype('int')
+            eligibility_trace = (ms_output > 0).astype('int')
+            # eligibility_trace = np.tanh(ms_output)
+            return reinforce, eligibility_trace
 
         # If the mirror system is absent, the paper doesn't describe what
         # the reinforcement is.
@@ -198,34 +253,24 @@ class Agent:
         #    of the next selected action using the current policy
         # 2. The eligibility trace is only for the selected action
 
-        # Compute next selected action, but without noise
-        _, next_action_i, next_des = self.actor(self.perceive(env),
-                                                self.get_internal_state(),
-                                                False)
         # As desirability either the weight or the noised(-free?) computed
         # desirability (next_des) can be used
         # Both alternatives are written below.
         # Because noise is inside the given desirability of the selected action
         # these alternatives are NOT equal.
-        if self.get_internal_state():
-            reinforce = r_signal + ACQprms.gamma * self.w_is[next_action_i] - \
-                self.w_is[selected_action_i]
-        else:
-            reinforce = r_signal + ACQprms.gamma * 0 - \
-                self.w_is[selected_action_i]
-        # reinforce = r_signal + ACQprms.gamma * next_des - \
-        #     desir
+        reinforce = r_signal + ACQprms.gamma * next_des - \
+            self.w_is[selected_action_i]
 
         # Debug
-        if self.actions.keys()[selected_action_i] == 'grasp_jaws' or \
-           self.actions.keys()[selected_action_i] == 'bring_to_mouth':
-            print self.actions.keys()[selected_action_i]
-            print "r={}, signal={}, next_des={}, weight={}, desir={}".format(
-                reinforce, r_signal, next_des, self.w_is[next_action_i], desir)
-            print "selected action={}, next={}".format(selected_action_i,
-                                                       next_action_i)
-            print self.get_executability(self.perceive(env), False)
-            env.print_current_state()
+        # if self.actions.keys()[selected_action_i] == 'grasp_jaws' or \
+        #    self.actions.keys()[selected_action_i] == 'bring_to_mouth':
+        #     print self.actions.keys()[selected_action_i]
+        #     print "r={}, signal={}, next_des={}, weight={}, desir={}".format(
+        #         reinforce, r_signal, next_des, self.w_is[next_action_i], desir)
+        #     print "selected action={}, next={}".format(selected_action_i,
+        #                                                next_action_i)
+        #     print self.get_executability(self.perceive(env), False)
+        #     env.print_current_state()
 
         if -1e03 < reinforce < +1e-03:
             reinforce = 0
@@ -236,6 +281,20 @@ class Agent:
 
     def update_desirability(self, reinforce, eligibility_trace):
         self.w_is += ACQprms.a * reinforce * eligibility_trace
+
+    def get_mirror_system_output(self, x):
+        ms_input = calc_mirror_system_input(self.current_state,
+                                            self.next_state, self.hunger)
+        FloatTensor = torch.cuda.FloatTensor if self.useCuda \
+            else torch.FloatTensor
+        out = self.mirror_system(Variable(torch.from_numpy(
+            np.asarray([ms_input])).type(FloatTensor)))
+        if self.useCuda:
+            out = out.cpu().data.numpy()[0]
+        else:
+            out = out.data.numpy()[0]
+        out += ACQprms.k * x[:self.n_rel_actions]
+        return out
 
     def get_internal_state(self):
         return self.hunger

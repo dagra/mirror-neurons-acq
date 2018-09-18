@@ -10,10 +10,18 @@ from acq_parameters import ACQparameters as ACQprms
 class ExternalEnviroment:
     """Contains all the info about the external enviroment"""
 
-    def __init__(self, v_max=35):
+    def __init__(self, v_max=35, random=False):
         self.v_max = v_max
-        self.divisor = ((ACQprms.s_p ** 2) * 2 * np.pi)
-        self.reset()
+        # Create constants for optimization
+        self.outer_divisor = ((ACQprms.s_p ** 2) * 2 * np.pi)
+        self.inner_divisor = 2 * (ACQprms.s_p**2)
+        self.x = np.repeat(np.arange(v_max)[..., np.newaxis], v_max, axis=1)
+        self.y = np.repeat(np.arange(v_max)[..., np.newaxis], v_max, axis=1).T
+
+        if random:
+            self.rest_random()
+        else:
+            self.reset()
 
     def reset(self):
         self.food = np.asarray([30, 30])
@@ -36,13 +44,19 @@ class ExternalEnviroment:
     def population_code(self, v1, v2):
         dx, dy = v2[0] - v1[0], v2[1] - v1[1]
         norm = int(self.v_max / 2)
-        code = np.zeros((self.v_max, self.v_max))
-        for x in range(code.shape[0]):
-            for y in range(code.shape[1]):
-                code[x, y] = np.exp((-(dx - (x - norm))**2 -
-                                    (dy - (y - norm))**2) /
-                                    2 * ACQprms.s_p**2) / self.divisor
-        return code
+        code = np.zeros((self.v_max, self.v_max)).astype('float')
+        # Slower-straightforward version
+        # for x in range(code.shape[0]):
+        #     for y in range(code.shape[1]):
+        #         code[x, y] = np.exp((-(dx - (x - norm))**2 -
+        #                             (dy - (y - norm))**2) /(
+        #                             2 * ACQprms.s_p**2))
+        x = self.x
+        y = self.y
+        # Faster-vectorized version
+        code = np.exp((-(dx - (x - norm))**2 - (dy - (y - norm))**2) /
+                      self.inner_divisor).astype('float')
+        return code / self.outer_divisor
 
     def compute_population_codes(self):
         self.pf = self.population_code(self.paw, self.food)

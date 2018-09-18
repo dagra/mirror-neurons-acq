@@ -66,8 +66,8 @@ class Eat(Action):
 
     def effects(self, env, agent):
         """Hunger reduces; positive reinforcement."""
-        env.reset()
-        env.compute_population_codes()
+        # env.reset()
+        # env.compute_population_codes()
         agent.hunger = 0
         return 1
 
