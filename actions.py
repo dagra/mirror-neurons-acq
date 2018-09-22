@@ -117,7 +117,7 @@ class GraspPaw(Action):
     def preconditions(self, env):
         """Paw close to food."""
         return (abs_diff_g_than(env.paw, env.food, 0) &
-                abs_diff_leq_than(env.paw, env.food, 2))
+                abs_diff_leq_than(env.paw, env.food, 5))
 
     def effects(self, env, agent):
         """Paw grasps food."""
@@ -145,7 +145,8 @@ class ReachFood(Action):
         return ((abs_diff_geq_than(env.food, env.paw, 5) &
                 (env.food[1] == 0)) |
                 (((env.food[1] == env.tube[1]) &
-                 abs_diff_l_than(env.paw, env.food, 5))))
+                 # abs_diff_l_than(env.paw, env.food, 5))))
+                 abs_diff_l_than(env.paw, env.tube, 5))))
 
     def effects(self, env, agent):
         """Paw is moved close enough to the food to grasp it"""
