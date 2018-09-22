@@ -17,7 +17,7 @@ from create_mirror_system import (Model, create_network,
                                   )
 
 # Use mirror system
-use_mirror_system = False
+use_mirror_system = True
 load_model = True
 useCuda = False
 fname_model = 'network'
@@ -33,11 +33,12 @@ elif use_mirror_system:
 env = ExternalEnviroment()
 
 agent = Agent(use_mirror_system=use_mirror_system,
-              n_irrelevant_actions=0, mirror_system=net,
+              n_irrelevant_actions=10, mirror_system=net,
               useCuda=useCuda)
 
 max_eat = 100
 max_actions = 50
+max_eat = 2 * max_eat
 
 n_rel_actions = agent.n_actions - agent.n_irr_actions
 # Statistics
@@ -46,10 +47,60 @@ success_trial_length = np.zeros(max_eat) - 1
 total_trial_length = []
 total_executability_error = []
 last_action_desirability = np.zeros((n_rel_actions, max_eat)) - 1
-
+all_last_action_desirability = np.zeros((n_rel_actions, max_eat)) - 1
+i_all_last = 0
 trial = 0
 trial_success = 0
 # A trial is successful if the agent performs the task (eat)
+try:
+    while trial_success < max_eat / 2:
+        n_tried_actions = 0
+        start_time = time.time()
+        executability_error[trial_success] = 0
+        total_executability_error.append(0)
+        while n_tried_actions < max_actions:
+            executed = agent.act(env)
+            executability_error[trial_success] += int(not executed)
+            total_executability_error[trial] += int(not executed)
+            n_tried_actions += 1
+            if agent.hunger == 0:
+                last_action_desirability[:, trial_success] = \
+                    agent.hist_desirability[:n_rel_actions, -1]
+                executability_error[trial_success] /= float(n_tried_actions)
+                success_trial_length[trial_success] = n_tried_actions
+                trial_success += 1
+                break
+        if i_all_last >= all_last_action_desirability.shape[-1]:
+            all_last_action_desirability = np.append(
+                all_last_action_desirability,
+                np.zeros((n_rel_actions, max_eat)) - 1,
+                axis=1)
+        all_last_action_desirability[:, i_all_last] = \
+            agent.hist_desirability[:n_rel_actions, -1]
+        i_all_last += 1
+        total_executability_error[trial] /= float(n_tried_actions)
+        total_trial_length.append(n_tried_actions)
+
+        print "###########"
+        print "[{}]: {}/{}-Ate: {}-actions:{}-exec rate: {}-time:{} sec".format(
+            trial + 1, trial_success, max_eat, agent.hunger == 0,
+            n_tried_actions, total_executability_error[trial],
+            np.round(time.time() -
+                     start_time))
+        # Debug
+        print agent.action_counter[:agent.n_rel_actions]
+
+        agent.action_counter = np.zeros(agent.n_actions)
+        trial += 1
+
+        # Reset agent and enviroment
+        agent.hunger = 1
+        env.reset()
+except KeyboardInterrupt:
+    pass
+
+agent.apply_lesion()
+
 try:
     while trial_success < max_eat:
         n_tried_actions = 0
@@ -68,6 +119,15 @@ try:
                 success_trial_length[trial_success] = n_tried_actions
                 trial_success += 1
                 break
+        if i_all_last >= all_last_action_desirability.shape[-1]:
+            all_last_action_desirability = np.append(
+                all_last_action_desirability,
+                np.zeros((n_rel_actions, max_eat)) - 1,
+                axis=-1)
+            print all_last_action_desirability.shape
+        all_last_action_desirability[:, i_all_last] = \
+            agent.hist_desirability[:n_rel_actions, -1]
+        i_all_last += 1
 
         total_executability_error[trial] /= float(n_tried_actions)
         total_trial_length.append(n_tried_actions)
@@ -95,10 +155,17 @@ labels = map(lambda x: x.name, agent.actions.values()[:n_rel_actions])
 colors = map(lambda x: x.color, agent.actions.values()[:n_rel_actions])
 markers = map(lambda x: x.marker, agent.actions.values()[:n_rel_actions])
 
+# plt.figure()
+# plt.title("Desirability per action of all steps in the simulation")
+# for i in range(n_rel_actions):
+#     plt.plot(agent.hist_desirability[i, :], label=labels[i], color=colors[i],
+#              marker=markers[i], mfc='none')
+# plt.legend()
+
 plt.figure()
-plt.title("Desirability per action of all steps in the simulation")
+plt.title("Desirability per action in the last step of all trials")
 for i in range(n_rel_actions):
-    plt.plot(agent.hist_desirability[i, :], label=labels[i], color=colors[i],
+    plt.plot(all_last_action_desirability[i, :i_all_last], label=labels[i], color=colors[i],
              marker=markers[i], mfc='none')
 plt.legend()
 
@@ -109,26 +176,26 @@ for i in range(n_rel_actions):
              marker=markers[i], mfc='none')
 plt.legend()
 
-plt.figure()
-plt.title("Executability error of successful trials")
-plt.plot(executability_error, 'o', marker='*',
-         label='Mean executability error')
-plt.legend()
+# plt.figure()
+# plt.title("Executability error of successful trials")
+# plt.plot(executability_error, 'o', marker='*',
+#          label='Mean executability error')
+# plt.legend()
 
-plt.figure()
-plt.title("Executability error of all trials")
-plt.plot(total_executability_error, 'o', marker='*',
-         label='Mean executability error of all trials')
-plt.legend()
+# plt.figure()
+# plt.title("Executability error of all trials")
+# plt.plot(total_executability_error, 'o', marker='*',
+#          label='Mean executability error of all trials')
+# plt.legend()
 
-plt.figure()
-plt.title("Trial length of successful trials")
-plt.plot(success_trial_length, 'o')
-plt.legend()
+# plt.figure()
+# plt.title("Trial length of successful trials")
+# plt.plot(success_trial_length, 'o')
+# plt.legend()
 
-plt.figure()
-plt.title("Trial length of all trials")
-plt.plot(total_trial_length, 'o')
-plt.legend()
+# plt.figure()
+# plt.title("Trial length of all trials")
+# plt.plot(total_trial_length, 'o')
+# plt.legend()
 
 plt.show()

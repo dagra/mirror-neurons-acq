@@ -57,7 +57,7 @@ class Action:
 
 
 class Eat(Action):
-    def __init__(self):
+    def __init__(self, lesion=False):
         Action.__init__(self, 'relevant', 'eat', 'b', 'o')
 
     def preconditions(self, env):
@@ -73,7 +73,7 @@ class Eat(Action):
 
 
 class GraspJaws(Action):
-    def __init__(self):
+    def __init__(self, lesion=False):
         Action.__init__(self, 'relevant', 'grasp_jaws', 'g', 's')
 
     def preconditions(self, env):
@@ -89,7 +89,7 @@ class GraspJaws(Action):
 
 
 class BringToMouth(Action):
-    def __init__(self):
+    def __init__(self, lesion=False):
         Action.__init__(self, 'relevant', 'bring_to_mouth', 'r', 'x')
 
     def preconditions(self, env):
@@ -110,23 +110,31 @@ class BringToMouth(Action):
 
 
 class GraspPaw(Action):
-    def __init__(self):
+    def __init__(self, lesion=False):
         Action.__init__(self, 'relevant', 'grasp_paw', 'c', '.')
+        self.lesion = lesion
 
     def preconditions(self, env):
         """Paw close to food."""
         return (abs_diff_g_than(env.paw, env.food, 0) &
-                abs_diff_leq_than(env.paw, env.food, 5))
+                abs_diff_leq_than(env.paw, env.food, 2))
 
     def effects(self, env, agent):
         """Paw grasps food."""
-        env.paw = env.food[:]
+        if not self.lesion:
+            env.paw = env.food[:]
+        else:
+            env.paw = env.food + [0, 5]
+            env.food[0] = min(30, env.food[0] + np.random.randint(low=-10,
+                                                                  high=2))
+            if env.food[1] == env.tube[1] and env.food[0] < env.tube[0]:
+                env.food[1] = 0
         env.compute_population_codes()
         return 0
 
 
 class ReachFood(Action):
-    def __init__(self):
+    def __init__(self, lesion=False):
         Action.__init__(self, 'relevant', 'reach_food', 'm', '|')
 
     def preconditions(self, env):
@@ -147,13 +155,14 @@ class ReachFood(Action):
 
 
 class ReachTube(Action):
-    def __init__(self):
+    def __init__(self, lesion=False):
         Action.__init__(self, 'relevant', 'reach_tube', 'y', '*')
 
     def preconditions(self, env):
         """Paw not near tube"""
         # SOS first condition
-        return (env.paw[0] < env.tube[0]) | (env.paw[1] != env.tube[1])
+        return ((env.paw[0] < env.tube[0]) | (env.paw[1] != (env.tube[1] + 1)))
+                # (env.paw != env.tube + [3, 1]).all())  # Last cond not in paper
 
     def effects(self, env, agent):
         """Move paw inside the tube, near the end
@@ -168,7 +177,7 @@ class ReachTube(Action):
 
 
 class Rake(Action):
-    def __init__(self):
+    def __init__(self, lesion=False):
         Action.__init__(self, 'relevant', 'rake', 'darkgrey', 'D')
 
     def preconditions(self, env):
@@ -187,14 +196,14 @@ class Rake(Action):
             env.food[0] = env.tube[0] - 1
             env.food[1] = 0
         else:
-            env.food = np.asarray([1, 0])  # SOS
+            env.food = np.asarray([1, 0])
         env.paw = env.food + [1, 3]
         env.compute_population_codes()
         return 0
 
 
 class LowerNeck(Action):
-    def __init__(self):
+    def __init__(self, lesion=False):
         Action.__init__(self, 'relevant', 'lower_neck', 'rosybrown', '1')
 
     def preconditions(self, env):
@@ -211,7 +220,7 @@ class LowerNeck(Action):
 
 
 class RaiseNeck(Action):
-    def __init__(self):
+    def __init__(self, lesion=False):
         Action.__init__(self, 'relevant', 'raise_neck', 'darksalmon', '2')
 
     def preconditions(self, env):
@@ -228,5 +237,5 @@ class RaiseNeck(Action):
 
 
 class IrrelevantAction(Action):
-    def __init__(self):
+    def __init__(self, lesion=False):
         Action.__init__(self, 'irrelevant', 'irrelevant_action', 'brown', '')

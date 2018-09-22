@@ -3,6 +3,7 @@
 Train a neural network and save it as the mirror system
 """
 import os
+from sets import Set
 
 import numpy as np
 import time
@@ -19,15 +20,27 @@ np.set_printoptions(precision=3)
 
 
 def check_dataset(dataset):
+    print "Checking dataset for inconsistent elements..."
+    inconsistent = Set([])
     for i in range(len(dataset)):
         x = dataset[i][0]
         y = dataset[i][1]
-        for j in range(len(dataset)):
+        if np.all(y == 0):
+            continue
+        temp = []
+        for j in range(i, len(dataset)):
+            if j in inconsistent:
+                continue
             if np.all(dataset[j][0] == x) and not np.all(dataset[j][1] == y):
-                raise ValueError("Dataset is insconsistent")
+                temp.append(j)
+        if temp:
+            inconsistent.update(set(temp))
+            inconsistent.add(i)
+    return inconsistent
 
 
 def preprocess_dataset(dataset):
+    print "Preprocessing dataset..."
     x = []
     y = []
     for d in dataset:
@@ -42,10 +55,13 @@ def preprocess_dataset(dataset):
     # x = x * 2 - 1
     # x[:, -1] = x[:, -1] * 100
     # Set target 0s to -1
-    y[y == 0] = -1
+    y[y == 0] = -0.25
     d = []
+    inconsistent = check_dataset(dataset)
+    print "Found %d inconsistent data" % len(inconsistent)
     for i in range(len(dataset)):
-        d.append([x[i], y[i]])
+        if i not in inconsistent:
+            d.append([x[i], y[i]])
     return np.asarray(d)
 
 
@@ -85,7 +101,7 @@ def create_dataset(size=5000):
                     samples_counter += 1
                     counter_per_class[action_i] += 1
             elif counter_zero < max_zero:
-                dataset.append([np.append(zeros, agent.hunger),
+                dataset.append([np.append(zeros, 0),
                                 np.zeros(len(AVAILABLE_ACTIONS[:-1]))])
                 samples_counter += 1
                 counter_zero += 1
@@ -94,7 +110,9 @@ def create_dataset(size=5000):
                 env.reset()
                 break
         g_i += 1
-
+    for i in range(max_zero*9):
+        dataset.append([np.append(zeros, 0),
+                        np.zeros(len(AVAILABLE_ACTIONS[:-1]))])
     print "Dataset creation time: {} sec.".format(time.time() - start_time)
     return np.asarray(dataset)
 
@@ -144,7 +162,8 @@ class Trainer:
         # self.optimizer = optim.SGD(self.model.parameters(), lr=0.0001,
         #                                  momentum=0.9)
         # self.optimizer = optim.Adadelta(self.model.parameters())
-        self.optimizer = optim.Adam(self.model.parameters(), lr=0.001)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=0.001,
+                                    weight_decay=0.01)
 
         self.trndataX, self.trndataY = trndataX, trndataY
         self.trndata_size = len(self.trndataX)

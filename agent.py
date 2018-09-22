@@ -23,7 +23,7 @@ def calc_mirror_system_input(current_state, next_state, hunger):
 class Agent:
     def __init__(self, use_mirror_system=False, n_irrelevant_actions=100,
                  hunger=1, v_max=35, learn=True, mirror_system=None,
-                 useCuda=False):
+                 useCuda=False, lesion=False):
         self.v_max = v_max
         self.ex_max = 1
         # In the paper ex_min = -5
@@ -32,7 +32,7 @@ class Agent:
         self.learn = learn
 
         self.n_irr_actions = n_irrelevant_actions
-        self.actions = [a() for a in AVAILABLE_ACTIONS[:-1]]
+        # self.actions = [a(lesion=lesion) for a in AVAILABLE_ACTIONS[:-1]]
         self.actions = OrderedDict()
         for i in range(len(AVAILABLE_ACTIONS[:-1])):
             self.actions[AVAILABLE_ACTIONS[i]().name] = AVAILABLE_ACTIONS[i]()
@@ -95,18 +95,21 @@ class Agent:
         if self.use_mirror_system:
             ms_output = self.get_mirror_system_output(priority)
             action_rec = np.max(ms_output)
-            selected_action_i = np.argwhere(ms_output == action_rec)[0][0]
+            recognized_action_i = np.argwhere(ms_output == action_rec)[0][0]
+            recognized_action = self.actions.values()[selected_action_i]
         else:
+            recognized_action_i = selected_action_i
+            recognized_action = selected_action
             ms_output = None
 
         if self.learn:
-            r_ex = self.get_executability_reinforcement(selected_action,
+            r_ex = self.get_executability_reinforcement(recognized_action,
                                                         executable, priority,
                                                         ms_output)
 
-            desir = des_vec[selected_action_i]
+            desir = des_vec[recognized_action_i]
             r_des, eligibility_trace = self.get_desirability_reinforcement(
-                selected_action_i, env, executable, r_signal, desir, ms_output)
+                recognized_action_i, env, executable, r_signal, desir, ms_output)
 
             self.update_executability(r_ex, percept)
 
@@ -160,16 +163,22 @@ class Agent:
         """Compute executability reinforcement"""
         if self.use_mirror_system:
             reinforce = np.zeros(self.n_actions)
+            max_priority = np.max(priority)
             for i in range(len(ms_output)):
                 # x is ambiguous in the paper i.e. is it the priority vector
                 # or an one-hot vector containing the selected action?
                 # if priority[i] > 0 and ms_output[i] < ACQprms.psi:
                 #     reinforce[i] = -1
-                if self.actions.values()[i] == selected_action and \
+                if priority[i] == max_priority and \
                    ms_output[i] < ACQprms.psi:
                     reinforce[i] = -1
                 elif ms_output[i] > ACQprms.psi:
                     reinforce[i] = 1
+            if selected_action.name in ('grasp_paw'):
+
+                ms_input = calc_mirror_system_input(self.current_state,
+                                                    self.next_state, self.hunger)
+                print priority, ms_output, reinforce, selected_action.name, executable, np.all(ms_input == 0)
             return reinforce.astype('float')
         # If the mirror system is absent, the paper doesn't describe what
         # the reinforcement is.
@@ -221,9 +230,9 @@ class Agent:
                                        executable, r_signal, desir,
                                        ms_output):
         """Compute desirability reinforcement"""
-        # if not executable or \
-        #    self.actions.values()[selected_action_i].type == 'irrelevant':
-        #     return 0, np.zeros(self.n_actions)
+        if not self.use_mirror_system and (not executable or \
+           self.actions.values()[selected_action_i].type == 'irrelevant'):
+            return 0, np.zeros(self.n_actions)
         if self.actions.values()[selected_action_i].type == 'irrelevant':
             return 0, np.zeros(self.n_actions)
 
@@ -238,9 +247,11 @@ class Agent:
             reinforce = r_signal + ACQprms.gamma * next_des - desir
             reinforce = r_signal + ACQprms.gamma * next_des - \
                 self.w_is[selected_action_i]
-            # eligibility_trace = np.zeros(self.n_actions)
-            eligibility_trace = (ms_output > ACQprms.s_p).astype('int')
-            eligibility_trace = (ms_output > 0).astype('int')
+            eligibility_trace = np.zeros(self.n_actions)
+            eligibility_trace[:self.n_rel_actions] = \
+                (ms_output > ACQprms.s_p).astype('int')
+            eligibility_trace[:self.n_rel_actions] = \
+                (ms_output > 0).astype('int')
             # eligibility_trace = np.tanh(ms_output)
             return reinforce, eligibility_trace
 
@@ -262,8 +273,8 @@ class Agent:
             self.w_is[selected_action_i]
 
         # Debug
-        # if self.actions.keys()[selected_action_i] == 'grasp_jaws' or \
-        #    self.actions.keys()[selected_action_i] == 'bring_to_mouth':
+        # if self.actions.keys()[selected_action_i] in ()
+           
         #     print self.actions.keys()[selected_action_i]
         #     print "r={}, signal={}, next_des={}, weight={}, desir={}".format(
         #         reinforce, r_signal, next_des, self.w_is[next_action_i], desir)
@@ -272,8 +283,8 @@ class Agent:
         #     print self.get_executability(self.perceive(env), False)
         #     env.print_current_state()
 
-        if -1e03 < reinforce < +1e-03:
-            reinforce = 0
+        # if -1e018 < reinforce < +1e-018:
+        #     reinforce = 0
         # Compute eligibility trace
         eligibility_trace = np.zeros(self.n_actions)
         eligibility_trace[selected_action_i] = 1
@@ -323,3 +334,7 @@ class Agent:
     def perceive(self, env):
         # env.compute_population_codes()
         return env.get_population_codes()
+
+    def apply_lesion(self):
+        for a in self.actions.values():
+            a.lesion = True
