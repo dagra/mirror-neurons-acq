@@ -22,20 +22,46 @@ np.set_printoptions(precision=3)
 def check_dataset(dataset):
     print "Checking dataset for inconsistent elements..."
     inconsistent = Set([])
+    inds = []
     for i in range(len(dataset)):
+        if np.all(dataset[i][1] == 0):
+            continue
+        inds.append(i)
+    start_time = time.time()
+    while inds:
+        i = inds.pop()
+        if i % 200 == 0:
+            print i, time.time() - start_time
+            start_time = time.time()
         x = dataset[i][0]
         y = dataset[i][1]
         if np.all(y == 0):
             continue
         temp = []
-        for j in range(i, len(dataset)):
+        for j in inds[:]:
             if j in inconsistent:
                 continue
             if np.all(dataset[j][0] == x) and not np.all(dataset[j][1] == y):
+                inds.remove(j)
                 temp.append(j)
         if temp:
             inconsistent.update(set(temp))
             inconsistent.add(i)
+
+    # for i in range(len(dataset)):
+    #     x = dataset[i][0]
+    #     y = dataset[i][1]
+    #     if np.all(y == 0):
+    #         continue
+    #     temp = []
+    #     for j in range(i, len(dataset)):
+    #         if j in inconsistent:
+    #             continue
+    #         if np.all(dataset[j][0] == x) and not np.all(dataset[j][1] == y):
+    #             temp.append(j)
+    #     if temp:
+    #         inconsistent.update(set(temp))
+    #         inconsistent.add(i)
     return inconsistent
 
 
@@ -303,5 +329,5 @@ def create_network(train_prc=0.8, dataset_fname=None, useCuda=False):
 
 if __name__ == "__main__":
     useCuda = False
-    net = create_network(dataset_fname='dataset_5000.npz', useCuda=useCuda)
+    net = create_network(dataset_fname='dataset_9500.npz', useCuda=useCuda)
     torch.save(net, "network")
