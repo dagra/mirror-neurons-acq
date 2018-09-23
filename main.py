@@ -17,7 +17,7 @@ from create_mirror_system import (Model, create_network,
                                   )
 
 # Use mirror system
-use_mirror_system = True
+use_mirror_system = False
 load_model = True
 useCuda = False
 fname_model = 'network'
@@ -33,7 +33,7 @@ elif use_mirror_system:
 env = ExternalEnviroment()
 
 agent = Agent(use_mirror_system=use_mirror_system,
-              n_irrelevant_actions=10, mirror_system=net,
+              n_irrelevant_actions=25, mirror_system=net,
               useCuda=useCuda)
 
 max_eat = 100
@@ -100,8 +100,11 @@ except KeyboardInterrupt:
     pass
 
 agent.apply_lesion()
+lesion_time = [trial_success, i_all_last]
 
 try:
+    recovery_time = [0, 0, 0]
+    recovery_flag = 0
     while trial_success < max_eat:
         n_tried_actions = 0
         start_time = time.time()
@@ -124,14 +127,24 @@ try:
                 all_last_action_desirability,
                 np.zeros((n_rel_actions, max_eat)) - 1,
                 axis=-1)
-            print all_last_action_desirability.shape
         all_last_action_desirability[:, i_all_last] = \
             agent.hist_desirability[:n_rel_actions, -1]
         i_all_last += 1
 
         total_executability_error[trial] /= float(n_tried_actions)
         total_trial_length.append(n_tried_actions)
-
+        # Check recovery
+        if agent.hunger == 0 and agent.action_counter[6] >= 1 and \
+           agent.action_counter[7] >= 1 and agent.w_is[6] > 0.05 and \
+           recovery_time[1] == 0:
+            recovery_flag += 1
+            recovery_time[0] += 1
+            if recovery_flag == 3:
+                recovery_time[1] = trial_success - 1
+                recovery_time[2] = i_all_last - 1
+        elif recovery_time[1] == 0:
+            recovery_flag = 0
+            recovery_time[0] += 1
         print "###########"
         print "[{}]: {}/{}-Ate: {}-actions:{}-exec rate: {}-time:{} sec".format(
             trial + 1, trial_success, max_eat, agent.hunger == 0,
@@ -149,6 +162,8 @@ try:
         env.reset()
 except KeyboardInterrupt:
     pass
+
+print "Trials needed for recovery: %d" % recovery_time[0], recovery_time
 # Plot results
 
 labels = map(lambda x: x.name, agent.actions.values()[:n_rel_actions])
@@ -167,6 +182,8 @@ plt.title("Desirability per action in the last step of all trials")
 for i in range(n_rel_actions):
     plt.plot(all_last_action_desirability[i, :i_all_last], label=labels[i], color=colors[i],
              marker=markers[i], mfc='none')
+plt.axvline(x=recovery_time[2], color='black', ls='--', label='Recovery')
+plt.axvline(x=lesion_time[1], color='black', label='Lesion')
 plt.legend()
 
 plt.figure()
@@ -174,6 +191,8 @@ plt.title("Desirability per action in the last step of the successful trials")
 for i in range(n_rel_actions):
     plt.plot(last_action_desirability[i, :], label=labels[i], color=colors[i],
              marker=markers[i], mfc='none')
+plt.axvline(x=recovery_time[1], color='black', ls='--', label='Recovery')
+plt.axvline(x=lesion_time[0], color='black', label='Lesion')
 plt.legend()
 
 # plt.figure()
