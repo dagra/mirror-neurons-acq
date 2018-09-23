@@ -15,13 +15,21 @@ AVAILABLE_ACTIONS = [Eat, GraspJaws, BringToMouth, GraspPaw, ReachFood,
 
 
 def calc_mirror_system_input(current_state, next_state, hunger):
-    # current_state = np.vstack(current_state.values())
-    # next_state = np.vstack(next_state.values())
-    state = current_state.values()
-    state.extend(next_state.values())
-    prod = np.linalg.multi_dot(state)
-    state = np.asarray(state).sum(axis=0) + prod
-    return np.append(state.flatten(), 100 * (1 - hunger))
+    if np.all(np.asarray(current_state.values()) ==
+              np.asarray(next_state.values())):
+        return np.append(np.zeros(140), (1 - hunger))
+    current_state = np.stack(current_state.values())
+    next_state = np.stack(next_state.values())
+    # print type(current_state), type(next_state), (np.asarray(current_state.values()) == np.asarray(next_state.values()))
+    # state = current_state.values()
+    # state.extend(next_state.values())
+    # prod = np.linalg.multi_dot(state)
+    # state = np.asarray(state).sum(axis=0)
+    # state = prod
+    diff = (next_state - current_state)
+    # state = np.append(diff.sum(axis=1), diff.sum(axis=2))
+    state = diff.sum(axis=1) + diff.sum(axis=2)
+    return np.append(state.flatten(), (1 - hunger))
     # return np.append((next_state - current_state).flatten(), (1 - hunger))
 
 
@@ -127,7 +135,8 @@ class Agent:
                                                                     np.newaxis]
              )
         )
-        self.action_counter[selected_action_i] += 1
+        if executable:
+            self.action_counter[selected_action_i] += 1
         return executable
 
     def actor(self, percept, internal_state, noise):
@@ -180,11 +189,10 @@ class Agent:
                     reinforce[i] = -1
                 elif ms_output[i] > ACQprms.psi:
                     reinforce[i] = 1
-            if selected_action.name in ('grasp_paw'):
-
-                ms_input = calc_mirror_system_input(self.current_state,
-                                                    self.next_state, self.hunger)
-                print priority, ms_output, reinforce, selected_action.name, executable, np.all(ms_input == 0)
+            if executable and selected_action.name in ('grasp_paw'):
+                # print priority, ms_output, reinforce, selected_action.name, executable, np.all(ms_input == 0)
+                print ms_output, reinforce, selected_action.name, executable
+                self.env.print_current_state()
             return reinforce.astype('float')
         # If the mirror system is absent, the paper doesn't describe what
         # the reinforcement is.
@@ -256,9 +264,18 @@ class Agent:
             eligibility_trace = np.zeros(self.n_actions)
             eligibility_trace[:self.n_rel_actions] = \
                 (ms_output > ACQprms.s_p).astype('int')
-            eligibility_trace[:self.n_rel_actions] = \
-                (ms_output > 0).astype('int')
+            # eligibility_trace[:self.n_rel_actions] = \
+            #     (ms_output > 0).astype('int')
             # eligibility_trace = np.tanh(ms_output)
+            if reinforce > 0 and self.w_is[selected_action_i] > 0.95:
+                print self.actions.keys()[selected_action_i]
+                print "r={}, signal={}, next_des={}, weight={}, desir={}".format(
+                    reinforce, r_signal, next_des, self.w_is[selected_action_i], desir)
+                print "selected action={}, next={}".format(selected_action_i,
+                                                           next_action_i)
+                print "next_weight={}".format(self.w_is[next_action_i])
+                print self.get_executability(self.perceive(env), False)
+                env.print_current_state()
             return reinforce, eligibility_trace
 
         # If the mirror system is absent, the paper doesn't describe what
@@ -311,7 +328,8 @@ class Agent:
         else:
             out = out.data.numpy()[0]
         out += ACQprms.k * x[:self.n_rel_actions]
-        return out
+        _max = np.max(np.abs(out))
+        return out / _max
 
     def get_internal_state(self):
         return self.hunger

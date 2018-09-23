@@ -97,16 +97,16 @@ def create_dataset(size=5000):
     max_per_class = int(size / (len(counter_per_class) + 1))
     counter_zero = 0
     max_zero = max_per_class
-    zeros = np.zeros(1225)
+    zeros = np.zeros(140)
     g_i = 0
     while samples_counter < int(size):
         if g_i % 5 == 0:
             agent = Agent(n_irrelevant_actions=0)
             print g_i, samples_counter, counter_per_class, counter_zero
-            if g_i % 10 == 0:
-                env.reset_random()
-            else:
+            if g_i % 25 == 0:
                 env.reset()
+            else:
+                env.reset_random()
         n_tried_actions = 0
         while n_tried_actions < max_actions:
             executed = agent.act(env)
@@ -151,6 +151,7 @@ class Model(nn.Module):
         # values in range (-inf, 0) and the priming is before the
         # application of the function, x cannot be larger than 0
         # so there cannot be any reinforcement signal.
+        print trndataX[0].shape
         self.l1 = nn.Sequential(nn.Linear(np.size(trndataX[0], 0), 300),
                                 nn.LeakyReLU(),
                                 # nn.Dropout(p=0.5),
@@ -289,7 +290,7 @@ def create_network(train_prc=0.8, dataset_fname=None, useCuda=False):
     if dataset_fname and os.path.isfile(dataset_fname):
         dataset = np.load(dataset_fname)['dataset']
     else:
-        dataset = create_dataset(size=5000)
+        dataset = create_dataset(size=15000)
         dataset_fname = "dataset_%d.npz" % (len(dataset))
         np.savez_compressed(dataset_fname, dataset=dataset)
         print "Saved dataset as: ", dataset_fname
@@ -331,5 +332,5 @@ def create_network(train_prc=0.8, dataset_fname=None, useCuda=False):
 
 if __name__ == "__main__":
     useCuda = True
-    net = create_network(dataset_fname='dataset_8385.npz', useCuda=useCuda)
+    net = create_network(dataset_fname='dataset_9500.npz', useCuda=useCuda)
     torch.save(net, "network")

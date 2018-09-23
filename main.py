@@ -19,7 +19,7 @@ from create_mirror_system import (Model, create_network,
 # Use mirror system
 use_mirror_system = False
 load_model = True
-useCuda = False
+useCuda = True
 fname_model = 'network'
 net = None
 dataset_fname = 'dataset_5000.npz'
