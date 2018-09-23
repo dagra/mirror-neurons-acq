@@ -15,9 +15,15 @@ AVAILABLE_ACTIONS = [Eat, GraspJaws, BringToMouth, GraspPaw, ReachFood,
 
 
 def calc_mirror_system_input(current_state, next_state, hunger):
-    current_state = np.vstack(current_state.values())
-    next_state = np.vstack(next_state.values())
-    return np.append((next_state - current_state).flatten(), (1 - hunger))
+    # current_state = np.vstack(current_state.values())
+    # next_state = np.vstack(next_state.values())
+    state = current_state.values()
+    state.extend(next_state.values())
+    prod = np.linalg.multi_dot(state)
+    state = np.asarray(state).sum(axis=0) + prod
+    return np.append(state.flatten(), 100 * (1 - hunger))
+    # return np.append((next_state - current_state).flatten(), (1 - hunger))
+
 
 
 class Agent:

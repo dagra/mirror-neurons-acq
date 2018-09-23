@@ -28,6 +28,7 @@ def check_dataset(dataset):
             continue
         inds.append(i)
     start_time = time.time()
+    print len(inds)
     while inds:
         i = inds.pop()
         if i % 200 == 0:
@@ -35,14 +36,11 @@ def check_dataset(dataset):
             start_time = time.time()
         x = dataset[i][0]
         y = dataset[i][1]
-        if np.all(y == 0):
-            continue
         temp = []
         for j in inds[:]:
             if j in inconsistent:
                 continue
             if np.all(dataset[j][0] == x) and not np.all(dataset[j][1] == y):
-                inds.remove(j)
                 temp.append(j)
         if temp:
             inconsistent.update(set(temp))
@@ -83,11 +81,8 @@ def preprocess_dataset(dataset):
     # Set target 0s to -1
     y[y == 0] = -0.25
     d = []
-    inconsistent = check_dataset(dataset)
-    print "Found %d inconsistent data" % len(inconsistent)
     for i in range(len(dataset)):
-        if i not in inconsistent:
-            d.append([x[i], y[i]])
+        d.append([x[i], y[i]])
     return np.asarray(d)
 
 
@@ -102,7 +97,7 @@ def create_dataset(size=5000):
     max_per_class = int(size / (len(counter_per_class) + 1))
     counter_zero = 0
     max_zero = max_per_class
-    zeros = np.zeros(4900)
+    zeros = np.zeros(1225)
     g_i = 0
     while samples_counter < int(size):
         if g_i % 5 == 0:
@@ -140,6 +135,11 @@ def create_dataset(size=5000):
         dataset.append([np.append(zeros, 0),
                         np.zeros(len(AVAILABLE_ACTIONS[:-1]))])
     print "Dataset creation time: {} sec.".format(time.time() - start_time)
+    dataset = np.asarray(dataset)
+    inconsistent = check_dataset(dataset)
+    print "Found %d inconsistent data" % len(inconsistent)
+    for i in inconsistent:
+        dataset = np.delete(dataset, i, axis=0)
     return np.asarray(dataset)
 
 
@@ -151,17 +151,17 @@ class Model(nn.Module):
         # values in range (-inf, 0) and the priming is before the
         # application of the function, x cannot be larger than 0
         # so there cannot be any reinforcement signal.
-        self.l1 = nn.Sequential(nn.Linear(np.size(trndataX[0], 0), 500),
+        self.l1 = nn.Sequential(nn.Linear(np.size(trndataX[0], 0), 300),
                                 nn.LeakyReLU(),
                                 # nn.Dropout(p=0.5),
-                                nn.Linear(500, 100),
+                                nn.Linear(300, 150),
                                 nn.LeakyReLU(),
                                 # nn.Dropout(p=0.5),
-                                nn.Linear(100, 50),
+                                nn.Linear(150, 50),
                                 nn.LeakyReLU(),
-                                nn.Linear(50, 20),
+                                nn.Linear(50, 50),
                                 nn.LeakyReLU(),
-                                nn.Linear(20, np.size(trndataY[0], 0)),)
+                                nn.Linear(50, np.size(trndataY[0], 0)),)
 
     def forward(self, x):
         out = self.l1(x)
@@ -189,7 +189,7 @@ class Trainer:
         #                                  momentum=0.9)
         # self.optimizer = optim.Adadelta(self.model.parameters())
         self.optimizer = optim.Adam(self.model.parameters(), lr=0.001,
-                                    weight_decay=0.01)
+                                    weight_decay=0.00)
 
         self.trndataX, self.trndataY = trndataX, trndataY
         self.trndata_size = len(self.trndataX)
@@ -236,6 +236,8 @@ def evaluate_network(net, dataset, useCuda=False):
     counter_per_class = np.zeros(len(dataset[0, 1]))
     partial_correct_per_class = np.zeros(len(dataset[0, 1]))
     for sample in dataset:
+        if np.all(sample[1] <= 0):
+            continue
         out = net(Variable(torch.from_numpy(
             np.asarray([sample[0]])).type(FloatTensor)))
         if useCuda:
@@ -328,6 +330,6 @@ def create_network(train_prc=0.8, dataset_fname=None, useCuda=False):
     return net
 
 if __name__ == "__main__":
-    useCuda = False
-    net = create_network(dataset_fname='dataset_9500.npz', useCuda=useCuda)
+    useCuda = True
+    net = create_network(dataset_fname='dataset_8385.npz', useCuda=useCuda)
     torch.save(net, "network")
