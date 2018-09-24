@@ -30,10 +30,11 @@ def simulate(agent, verbose=0, plot=0, **kwargs):
     success_trial_length = kwargs['success_trial_length']
     trial = kwargs['trial']
 
+    stop = 500
     n_rel_actions = agent.n_actions - agent.n_irr_actions
     env = ExternalEnviroment()
     try:
-        while trial_success < max_eat and trial < 700:
+        while trial_success < max_eat and trial < stop:
             n_tried_actions = 0
             while n_tried_actions < max_actions:
                 agent.act(env)
@@ -65,6 +66,10 @@ def simulate(agent, verbose=0, plot=0, **kwargs):
                 if recovery_flag == 3:
                     recovery_time[1] = trial_success - 1
                     recovery_time[2] = i_all_last - 1
+                    if verbose:
+                        stop = trial + 30
+                    else:
+                        stop = trial + 1
             elif recovery_time and recovery_time[1] == 0:
                 recovery_flag = 0
                 recovery_time[0] += 1
@@ -83,7 +88,10 @@ def simulate(agent, verbose=0, plot=0, **kwargs):
             agent.hunger = 1
             env.reset()
     except KeyboardInterrupt:
-        pass
+        if verbose:
+            pass
+        else:
+            quit()
 
     if verbose and plot:
         # Plot results
@@ -182,7 +190,7 @@ def simulate_one(max_eat, max_actions, use_mirror_system,
 
 if __name__ == '__main__':
     # Simulation parameters
-    use_mirror_system = False
+    use_mirror_system = True
     load_model = True
     useCuda = True
     fname_model = 'network'

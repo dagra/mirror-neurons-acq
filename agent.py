@@ -189,10 +189,10 @@ class Agent:
                     reinforce[i] = -1
                 elif ms_output[i] > ACQprms.psi:
                     reinforce[i] = 1
-            if executable and selected_action.name in ('grasp_paw'):
+            # if executable and selected_action.name in ('grasp_paw'):
                 # print priority, ms_output, reinforce, selected_action.name, executable, np.all(ms_input == 0)
-                print ms_output, reinforce, selected_action.name, executable
-                self.env.print_current_state()
+                # print ms_output, reinforce, selected_action.name, executable
+                # self.env.print_current_state()
             return reinforce.astype('float')
         # If the mirror system is absent, the paper doesn't describe what
         # the reinforcement is.
@@ -267,15 +267,15 @@ class Agent:
             # eligibility_trace[:self.n_rel_actions] = \
             #     (ms_output > 0).astype('int')
             # eligibility_trace = np.tanh(ms_output)
-            if reinforce > 0 and self.w_is[selected_action_i] > 0.95:
-                print self.actions.keys()[selected_action_i]
-                print "r={}, signal={}, next_des={}, weight={}, desir={}".format(
-                    reinforce, r_signal, next_des, self.w_is[selected_action_i], desir)
-                print "selected action={}, next={}".format(selected_action_i,
-                                                           next_action_i)
-                print "next_weight={}".format(self.w_is[next_action_i])
-                print self.get_executability(self.perceive(env), False)
-                env.print_current_state()
+            # if reinforce > 0 and self.w_is[selected_action_i] > 0.95:
+            #     print self.actions.keys()[selected_action_i]
+            #     print "r={}, signal={}, next_des={}, weight={}, desir={}".format(
+            #         reinforce, r_signal, next_des, self.w_is[selected_action_i], desir)
+            #     print "selected action={}, next={}".format(selected_action_i,
+            #                                                next_action_i)
+            #     print "next_weight={}".format(self.w_is[next_action_i])
+            #     print self.get_executability(self.perceive(env), False)
+            #     env.print_current_state()
             return reinforce, eligibility_trace
 
         # If the mirror system is absent, the paper doesn't describe what

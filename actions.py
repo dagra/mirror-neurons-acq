@@ -126,7 +126,7 @@ class GraspPaw(Action):
         else:
             env.paw = env.food + [0, 5]
             env.food[0] = min(30, env.food[0] + np.random.randint(low=-10,
-                                                                  high=-1))
+                                                                  high=2))
             if env.food[0] < 0:
                 env.food[0] = 0
             if env.food[1] == env.tube[1] and env.food[0] < env.tube[0]:
