@@ -131,7 +131,7 @@ def create_dataset(size=5000):
                 env.reset()
                 break
         g_i += 1
-    for i in range(max_zero*9):
+    for i in range(max_zero * 9):
         dataset.append([np.append(zeros, 0),
                         np.zeros(len(AVAILABLE_ACTIONS[:-1]))])
     print "Dataset creation time: {} sec.".format(time.time() - start_time)

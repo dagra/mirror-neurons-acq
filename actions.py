@@ -115,7 +115,11 @@ class GraspPaw(Action):
         self.lesion = lesion
 
     def preconditions(self, env):
-        """Paw close to food."""
+        """Paw close to food.
+
+        If the max distance for executability is changed from 5 to 2
+        then the action ReachFood will become necessary.
+        """
         return (abs_diff_g_than(env.paw, env.food, 0) &
                 abs_diff_leq_than(env.paw, env.food, 5))
 
@@ -125,8 +129,11 @@ class GraspPaw(Action):
             env.paw = env.food[:]
         else:
             env.paw = env.food + [0, 5]
-            env.food[0] = min(30, env.food[0] + np.random.randint(low=-10,
-                                                                  high=2))
+            # In the paper a random number in range [-10, 2] is added
+            # Slightly changed, as it seemed to work better with the
+            # network tested, but other limits work too
+            env.food[0] = min(30, env.food[0] + np.random.randint(low=-8,
+                                                                  high=3))
             if env.food[0] < 0:
                 env.food[0] = 0
             if env.food[1] == env.tube[1] and env.food[0] < env.tube[0]:
@@ -147,7 +154,6 @@ class ReachFood(Action):
         return ((abs_diff_geq_than(env.food, env.paw, 5) &
                 (env.food[1] == 0)) |
                 (((env.food[1] == env.tube[1]) &
-                 # abs_diff_l_than(env.paw, env.food, 5))))
                  abs_diff_l_than(env.paw, env.tube, 5))))
 
     def effects(self, env, agent):

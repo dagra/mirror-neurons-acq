@@ -116,8 +116,9 @@ def simulate(agent, verbose=0, plot=0, **kwargs):
         plt.title("Desirability per action in the last step "
                   "of the successful trials")
         for i in range(n_rel_actions):
-            plt.plot(last_action_desirability[i, :], label=labels[i],
-                     color=colors[i], marker=marks[i], mfc='none')
+            plt.plot(last_action_desirability[i, :trial_success],
+                     label=labels[i], color=colors[i],
+                     marker=marks[i], mfc='none')
         if recovery_time:
             plt.axvline(x=recovery_time[1], color='black', ls='--',
                         label='Recovery')
@@ -127,7 +128,7 @@ def simulate(agent, verbose=0, plot=0, **kwargs):
 
         plt.figure()
         plt.title("Trial length of successful trials")
-        plt.plot(success_trial_length, 'o')
+        plt.plot(success_trial_length[:trial_success], 'o')
         plt.legend()
 
         plt.figure()
@@ -161,10 +162,8 @@ def simulate_one(max_eat, max_actions, use_mirror_system,
     kwargs['max_actions'] = max_actions
     # Statistics
     n_rel_actions = agent.n_actions - agent.n_irr_actions
-    kwargs['executability_error'] = np.zeros(max_eat) - 1
     kwargs['success_trial_length'] = np.zeros(max_eat) - 1
     kwargs['total_trial_length'] = []
-    kwargs['total_executability_error'] = []
     kwargs['last_action_desirability'] = np.zeros((n_rel_actions,
                                                    max_eat)) - 1
     kwargs['all_last_action_desirability'] = np.zeros((n_rel_actions,
@@ -204,7 +203,7 @@ if __name__ == '__main__':
 
     max_eat = 100
     max_actions = 50
-    n_irrelevant_actions = 10
+    n_irrelevant_actions = 25
 
     recovery_time = simulate_one(max_eat, max_actions, use_mirror_system,
                                  n_irrelevant_actions, mirror_system=net,

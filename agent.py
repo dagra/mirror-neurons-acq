@@ -15,23 +15,26 @@ AVAILABLE_ACTIONS = [Eat, GraspJaws, BringToMouth, GraspPaw, ReachFood,
 
 
 def calc_mirror_system_input(current_state, next_state, hunger):
+    """Returns a vector which combines all the input.
+
+    There are many ways the input can be combined to form an 1d vector.
+    The main requirement that the representation must meet is the
+    network to be able to generalize enough to interpet a lesioned grasp
+    as a rake.
+    Bellow a pretty dense representation is chosen which consists of the
+    concatenation of the summation of both axes of the difference of the
+    input.
+    This function is used in the creation of the dataset that the network
+    is trained on and during the simulation.
+    """
     if np.all(np.asarray(current_state.values()) ==
               np.asarray(next_state.values())):
         return np.append(np.zeros(140), (1 - hunger))
     current_state = np.stack(current_state.values())
     next_state = np.stack(next_state.values())
-    # print type(current_state), type(next_state), (np.asarray(current_state.values()) == np.asarray(next_state.values()))
-    # state = current_state.values()
-    # state.extend(next_state.values())
-    # prod = np.linalg.multi_dot(state)
-    # state = np.asarray(state).sum(axis=0)
-    # state = prod
     diff = (next_state - current_state)
-    # state = np.append(diff.sum(axis=1), diff.sum(axis=2))
     state = diff.sum(axis=1) + diff.sum(axis=2)
     return np.append(state.flatten(), (1 - hunger))
-    # return np.append((next_state - current_state).flatten(), (1 - hunger))
-
 
 
 class Agent:
@@ -46,7 +49,6 @@ class Agent:
         self.learn = learn
 
         self.n_irr_actions = n_irrelevant_actions
-        # self.actions = [a(lesion=lesion) for a in AVAILABLE_ACTIONS[:-1]]
         self.actions = OrderedDict()
         for i in range(len(AVAILABLE_ACTIONS[:-1])):
             self.actions[AVAILABLE_ACTIONS[i]().name] = AVAILABLE_ACTIONS[i]()
@@ -123,7 +125,8 @@ class Agent:
 
             desir = des_vec[recognized_action_i]
             r_des, eligibility_trace = self.get_desirability_reinforcement(
-                recognized_action_i, env, executable, r_signal, desir, ms_output)
+                recognized_action_i, env, executable, r_signal, desir,
+                ms_output)
 
             self.update_executability(r_ex, percept)
 
@@ -189,10 +192,6 @@ class Agent:
                     reinforce[i] = -1
                 elif ms_output[i] > ACQprms.psi:
                     reinforce[i] = 1
-            # if executable and selected_action.name in ('grasp_paw'):
-                # print priority, ms_output, reinforce, selected_action.name, executable, np.all(ms_input == 0)
-                # print ms_output, reinforce, selected_action.name, executable
-                # self.env.print_current_state()
             return reinforce.astype('float')
         # If the mirror system is absent, the paper doesn't describe what
         # the reinforcement is.
@@ -244,7 +243,7 @@ class Agent:
                                        executable, r_signal, desir,
                                        ms_output):
         """Compute desirability reinforcement"""
-        if not self.use_mirror_system and (not executable or \
+        if not self.use_mirror_system and (not executable or
            self.actions.values()[selected_action_i].type == 'irrelevant'):
             return 0, np.zeros(self.n_actions)
         if self.actions.values()[selected_action_i].type == 'irrelevant':
@@ -255,27 +254,15 @@ class Agent:
             self.perceive(env),
             self.get_internal_state(),
             False)
+
         next_des = next_des_vec[next_action_i]
 
         if self.use_mirror_system:
-            reinforce = r_signal + ACQprms.gamma * next_des - desir
             reinforce = r_signal + ACQprms.gamma * next_des - \
                 self.w_is[selected_action_i]
             eligibility_trace = np.zeros(self.n_actions)
             eligibility_trace[:self.n_rel_actions] = \
                 (ms_output > ACQprms.s_p).astype('int')
-            # eligibility_trace[:self.n_rel_actions] = \
-            #     (ms_output > 0).astype('int')
-            # eligibility_trace = np.tanh(ms_output)
-            # if reinforce > 0 and self.w_is[selected_action_i] > 0.95:
-            #     print self.actions.keys()[selected_action_i]
-            #     print "r={}, signal={}, next_des={}, weight={}, desir={}".format(
-            #         reinforce, r_signal, next_des, self.w_is[selected_action_i], desir)
-            #     print "selected action={}, next={}".format(selected_action_i,
-            #                                                next_action_i)
-            #     print "next_weight={}".format(self.w_is[next_action_i])
-            #     print self.get_executability(self.perceive(env), False)
-            #     env.print_current_state()
             return reinforce, eligibility_trace
 
         # If the mirror system is absent, the paper doesn't describe what
@@ -289,15 +276,11 @@ class Agent:
 
         # As desirability either the weight or the noised(-free?) computed
         # desirability (next_des) can be used
-        # Both alternatives are written below.
-        # Because noise is inside the given desirability of the selected action
-        # these alternatives are NOT equal.
         reinforce = r_signal + ACQprms.gamma * next_des - \
             self.w_is[selected_action_i]
 
         # Debug
         # if self.actions.keys()[selected_action_i] in ()
-           
         #     print self.actions.keys()[selected_action_i]
         #     print "r={}, signal={}, next_des={}, weight={}, desir={}".format(
         #         reinforce, r_signal, next_des, self.w_is[next_action_i], desir)
@@ -306,8 +289,6 @@ class Agent:
         #     print self.get_executability(self.perceive(env), False)
         #     env.print_current_state()
 
-        # if -1e018 < reinforce < +1e-018:
-        #     reinforce = 0
         # Compute eligibility trace
         eligibility_trace = np.zeros(self.n_actions)
         eligibility_trace[selected_action_i] = 1

@@ -23,23 +23,25 @@ else:
 max_eat = 100
 max_actions = 50
 
-n_irrelevant_actions = [0, 1, 5, 10, 25, 40, 50, 70, 100]
-start = 0
+n_irrelevant_actions = [0, 2, 5, 10, 25, 40, 50, 70, 80, 100]
+start = 8
 end = len(n_irrelevant_actions)
-n_sims_per_level = 10
+end = 9
+n_sims_per_level = 5
 ms_recovery_time_per_level = []
 ms_recovery_error_per_level = []
 no_ms_recovery_time_per_level = []
 no_ms_recovery_error_per_level = []
 
-
+global_start_time = time.time()
+n_sims = len(n_irrelevant_actions[start:end]) * n_sims_per_level * 2
+i_sims = 1
 for n_irr_action in n_irrelevant_actions[start:end]:
     no_ms_temp = []
     ms_temp = []
     for i in range(n_sims_per_level):
-        print ("Running without mirror system "
-               "[Irrelevant actions={}-n={}/{}]...").format(
-            n_irr_action, i + 1, n_sims_per_level)
+        print "[{}/{}]: Running NO-MS [Irrel actions:{}-n:{}/{}]...".format(
+            i_sims, n_sims, n_irr_action, i + 1, n_sims_per_level)
         start_time = time.time()
         recovery_time = 0
         # If recovery < 4 then probably the strategy was already
@@ -48,24 +50,29 @@ for n_irr_action in n_irrelevant_actions[start:end]:
             recovery_time = simulate_one(max_eat, max_actions, False,
                                          n_irr_action, mirror_system=net,
                                          useCuda=useCuda, verbose=0)
-        print "Time needed: {}".format(time.time() - start_time)
+        print "Recovery: {} trials, Time needed: {} sec".format(
+            recovery_time, int(time.time() - start_time))
         no_ms_temp.append(recovery_time)
 
-        print ("Running with mirror system "
-               "[Irrelevant actions={}-n={}/{}]...").format(
-            n_irr_action, i + 1, n_sims_per_level)
+        print "[{}/{}]: Running MS [Irrel actions:{}-n:{}/{}]...".format(
+            i_sims + 1, n_sims, n_irr_action, i + 1, n_sims_per_level)
         start_time = time.time()
         recovery_time = 0
         while recovery_time < 4:
             recovery_time = simulate_one(max_eat, max_actions, True,
                                          n_irr_action, mirror_system=net,
                                          useCuda=useCuda, verbose=0)
-        print "Time needed: {}".format(time.time() - start_time)
+        print "Recovery: {} trials, Time needed: {} sec".format(
+            recovery_time, int(time.time() - start_time))
         ms_temp.append(recovery_time)
+        i_sims += 2
     no_ms_recovery_time_per_level.append(np.mean(no_ms_temp))
     no_ms_recovery_error_per_level.append(np.std(no_ms_temp))
     ms_recovery_time_per_level.append(np.mean(ms_temp))
     ms_recovery_error_per_level.append(np.std(ms_temp))
+
+print "Time needed for all the simulations: {} mins".format(
+    np.round(int(time.time() - global_start_time) / 60.))
 
 np.savez_compressed(
     'many_stats.npz',
