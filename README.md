@@ -39,7 +39,7 @@ the corresponding parameters in the file **simulate_many.py** and execute it
 ### Single Simulation
 The figures bellow depict the desirability curves of the actions and the
 trial lengths with and without the mirror system. 
-The solid vertical line signifies the the moment of the lesion, whereas the
+The solid vertical line signifies the moment of the lesion, whereas the
 dashed vertical line is the time of recovery, i.e. the time when the _"cat"_
 found the new optimal strategy.
 
