@@ -38,7 +38,7 @@ the corresponding parameters in the file **simulate_many.py** and execute it
 ## Sample Results
 ### Single Simulation
 The figures bellow depict the desirability curves of the actions and the
-trial lengths with and without the mirror system. 
+trial lengths with and without the mirror system for 25 irrelevant actions. 
 The solid vertical line signifies the moment of the lesion, whereas the
 dashed vertical line is the time of recovery, i.e. the time when the _"cat"_
 found the new optimal strategy.
