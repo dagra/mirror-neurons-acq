@@ -56,7 +56,7 @@ of the number of irrelevant actions for an agent with the mirror system and with
 The main difference, in contrast to the paper, is that the agent without the mirror system cannot find easily the optimal
 strategy even if only 1 irrelevant actions is available. But the important point, that as the number of irrelevant
 actions increases the agent without the mirror system needs more trials for recovery, but the agent with the mirror system
-is not affected.
+is not affected, is present.
 
 ![desirability per action](../master/images/recovery_rate.png)
 
