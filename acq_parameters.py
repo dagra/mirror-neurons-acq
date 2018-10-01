@@ -7,7 +7,7 @@ class ACQparameters:
     # Population code width
     # Allows reinforcement to effect similar states
     # In the paper s_p = 0.25
-    s_p = 0.25
+    s_p = 0.4
 
     # Executability noise
     # Encourages exploration, but would not override actions with
@@ -36,14 +36,14 @@ class ACQparameters:
     # is not activated at 25% of its maximal level
     # (needs to be greater than k)
     # In the paper psi = 0.25
-    psi = 0.15
+    psi = 0.5
 
     # Executability/desirability learning rate
     # Determines rate of weight changes -- the model becomes
     # unstable when this value is too large
     # In the paper a = 0.1
     # The model is very sensitive of this parameter
-    a = 0.1
+    a = 0.075
 
     # Desirability discount rate
     # Determines maximal length of action sequences that can be

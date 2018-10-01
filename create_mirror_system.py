@@ -3,6 +3,7 @@
 Train a neural network and save it as the mirror system
 """
 import os
+from sets import Set
 
 import numpy as np
 import time
@@ -19,15 +20,51 @@ np.set_printoptions(precision=3)
 
 
 def check_dataset(dataset):
+    print "Checking dataset for inconsistent elements..."
+    inconsistent = Set([])
+    inds = []
     for i in range(len(dataset)):
+        if np.all(dataset[i][1] == 0):
+            continue
+        inds.append(i)
+    start_time = time.time()
+    print len(inds)
+    while inds:
+        i = inds.pop()
+        if i % 200 == 0:
+            print i, time.time() - start_time
+            start_time = time.time()
         x = dataset[i][0]
         y = dataset[i][1]
-        for j in range(len(dataset)):
+        temp = []
+        for j in inds[:]:
+            if j in inconsistent:
+                continue
             if np.all(dataset[j][0] == x) and not np.all(dataset[j][1] == y):
-                raise ValueError("Dataset is insconsistent")
+                temp.append(j)
+        if temp:
+            inconsistent.update(set(temp))
+            inconsistent.add(i)
+
+    # for i in range(len(dataset)):
+    #     x = dataset[i][0]
+    #     y = dataset[i][1]
+    #     if np.all(y == 0):
+    #         continue
+    #     temp = []
+    #     for j in range(i, len(dataset)):
+    #         if j in inconsistent:
+    #             continue
+    #         if np.all(dataset[j][0] == x) and not np.all(dataset[j][1] == y):
+    #             temp.append(j)
+    #     if temp:
+    #         inconsistent.update(set(temp))
+    #         inconsistent.add(i)
+    return inconsistent
 
 
 def preprocess_dataset(dataset):
+    print "Preprocessing dataset..."
     x = []
     y = []
     for d in dataset:
@@ -42,7 +79,7 @@ def preprocess_dataset(dataset):
     # x = x * 2 - 1
     # x[:, -1] = x[:, -1] * 100
     # Set target 0s to -1
-    y[y == 0] = -1
+    y[y == 0] = -0.25
     d = []
     for i in range(len(dataset)):
         d.append([x[i], y[i]])
@@ -60,16 +97,16 @@ def create_dataset(size=5000):
     max_per_class = int(size / (len(counter_per_class) + 1))
     counter_zero = 0
     max_zero = max_per_class
-    zeros = np.zeros(4900)
+    zeros = np.zeros(140)
     g_i = 0
     while samples_counter < int(size):
         if g_i % 5 == 0:
             agent = Agent(n_irrelevant_actions=0)
             print g_i, samples_counter, counter_per_class, counter_zero
-            if g_i % 10 == 0:
-                env.reset_random()
-            else:
+            if g_i % 25 == 0:
                 env.reset()
+            else:
+                env.reset_random()
         n_tried_actions = 0
         while n_tried_actions < max_actions:
             executed = agent.act(env)
@@ -85,7 +122,7 @@ def create_dataset(size=5000):
                     samples_counter += 1
                     counter_per_class[action_i] += 1
             elif counter_zero < max_zero:
-                dataset.append([np.append(zeros, agent.hunger),
+                dataset.append([np.append(zeros, 0),
                                 np.zeros(len(AVAILABLE_ACTIONS[:-1]))])
                 samples_counter += 1
                 counter_zero += 1
@@ -94,8 +131,15 @@ def create_dataset(size=5000):
                 env.reset()
                 break
         g_i += 1
-
+    for i in range(max_zero * 9):
+        dataset.append([np.append(zeros, 0),
+                        np.zeros(len(AVAILABLE_ACTIONS[:-1]))])
     print "Dataset creation time: {} sec.".format(time.time() - start_time)
+    dataset = np.asarray(dataset)
+    inconsistent = check_dataset(dataset)
+    print "Found %d inconsistent data" % len(inconsistent)
+    for i in inconsistent:
+        dataset = np.delete(dataset, i, axis=0)
     return np.asarray(dataset)
 
 
@@ -107,17 +151,18 @@ class Model(nn.Module):
         # values in range (-inf, 0) and the priming is before the
         # application of the function, x cannot be larger than 0
         # so there cannot be any reinforcement signal.
-        self.l1 = nn.Sequential(nn.Linear(np.size(trndataX[0], 0), 500),
+        print trndataX[0].shape
+        self.l1 = nn.Sequential(nn.Linear(np.size(trndataX[0], 0), 300),
                                 nn.LeakyReLU(),
                                 # nn.Dropout(p=0.5),
-                                nn.Linear(500, 100),
+                                nn.Linear(300, 150),
                                 nn.LeakyReLU(),
                                 # nn.Dropout(p=0.5),
-                                nn.Linear(100, 50),
+                                nn.Linear(150, 50),
                                 nn.LeakyReLU(),
-                                nn.Linear(50, 20),
+                                nn.Linear(50, 50),
                                 nn.LeakyReLU(),
-                                nn.Linear(20, np.size(trndataY[0], 0)),)
+                                nn.Linear(50, np.size(trndataY[0], 0)),)
 
     def forward(self, x):
         out = self.l1(x)
@@ -144,7 +189,8 @@ class Trainer:
         # self.optimizer = optim.SGD(self.model.parameters(), lr=0.0001,
         #                                  momentum=0.9)
         # self.optimizer = optim.Adadelta(self.model.parameters())
-        self.optimizer = optim.Adam(self.model.parameters(), lr=0.001)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=0.001,
+                                    weight_decay=0.00)
 
         self.trndataX, self.trndataY = trndataX, trndataY
         self.trndata_size = len(self.trndataX)
@@ -191,6 +237,8 @@ def evaluate_network(net, dataset, useCuda=False):
     counter_per_class = np.zeros(len(dataset[0, 1]))
     partial_correct_per_class = np.zeros(len(dataset[0, 1]))
     for sample in dataset:
+        if np.all(sample[1] <= 0):
+            continue
         out = net(Variable(torch.from_numpy(
             np.asarray([sample[0]])).type(FloatTensor)))
         if useCuda:
@@ -242,7 +290,7 @@ def create_network(train_prc=0.8, dataset_fname=None, useCuda=False):
     if dataset_fname and os.path.isfile(dataset_fname):
         dataset = np.load(dataset_fname)['dataset']
     else:
-        dataset = create_dataset(size=5000)
+        dataset = create_dataset(size=15000)
         dataset_fname = "dataset_%d.npz" % (len(dataset))
         np.savez_compressed(dataset_fname, dataset=dataset)
         print "Saved dataset as: ", dataset_fname
@@ -283,6 +331,6 @@ def create_network(train_prc=0.8, dataset_fname=None, useCuda=False):
     return net
 
 if __name__ == "__main__":
-    useCuda = False
-    net = create_network(dataset_fname='dataset_5000.npz', useCuda=useCuda)
+    useCuda = True
+    net = create_network(dataset_fname='dataset_9500.npz', useCuda=useCuda)
     torch.save(net, "network")
