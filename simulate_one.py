@@ -1,8 +1,12 @@
-"""Main code
+"""Simulates the training and recovery of an agent
 
-Initializes the agent and the enviroment.
-Simulates N trials.
-Records and plots the corresponding statistics.
+It can be used as the main file to simulate one agent or
+by a different file for many agents (e.g. see simulate_many.py)
+
+Contains two functions: simulate and simulate_one.
+The first, given an agent, simulates N trials.
+The second creates an agent and simulates the training, lesion and
+recovery.
 """
 
 import matplotlib.pyplot as plt

@@ -1,4 +1,12 @@
-"""Simulate with different number of irrelevant actions and gather stats"""
+"""Simulate agents with different number of irrelevant actions to gather stats
+
+This is the main code to plot the mean number of trials needed for recovery
+as a function of the number of irrelevant actions.
+
+As the number of irrelevant actions increases, the time needed for training
+increases as well. So for 'big' N the time needed for one sample may be quite
+large (e.g. 1 hour).
+"""
 
 import matplotlib.pyplot as plt
 import numpy as np
